@@ -35,6 +35,16 @@ export {
 export { IngestionPlanner, type PlannedIngestion } from './ingestion-planner.js';
 export type { ArchitectModel, ReviewerModel } from './ingestion-planner.js';
 export {
+  MAX_FILTER_DEPTH,
+  MAX_FILTER_NODES,
+  MAX_QUERY_LIMIT,
+  QueryCompileError,
+  compileRecordQuery,
+  type CompiledRecordQuery,
+  type CompileRecordQueryInput,
+} from './query-compiler.js';
+export type { QueryPlannerInput, QueryPlannerModel } from './query-planner.js';
+export {
   emptySchema,
   findColumnById,
   findTableById,

@@ -8,6 +8,7 @@ export {
   type AppliedMigration,
 } from './migrator.js';
 export { migrations } from './migrations/index.js';
+export { mapRecordRow } from './mapping.js';
 export { IngestionRepository } from './repositories/ingestion-repository.js';
 export { RecordRepository } from './repositories/record-repository.js';
 export {

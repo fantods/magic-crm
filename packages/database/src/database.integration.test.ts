@@ -265,4 +265,21 @@ describe.skipIf(!databaseUrl)('PostgreSQL database core', () => {
     },
     testTimeout,
   );
+
+  it(
+    'rejects writes inside read-only transactions',
+    async () => {
+      await expect(
+        database.withReadOnlyTransaction(async (client) => {
+          await client.query('SELECT 1');
+          await client.query('INSERT INTO workspaces(id, display_name) VALUES ($1, $2)', [
+            newWorkspaceId(),
+            'Must be rejected',
+          ]);
+          return 'never';
+        }),
+      ).rejects.toThrow(/read-only transaction/i);
+    },
+    testTimeout,
+  );
 });

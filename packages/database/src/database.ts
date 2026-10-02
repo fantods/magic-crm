@@ -45,6 +45,30 @@ export class FormlessDatabase {
     }
   }
 
+  /**
+   * Runs the callback inside a `READ ONLY` transaction. PostgreSQL rejects any
+   * mutating statement, which enforces the plan's read-only safety rule for
+   * query execution at the database level rather than by convention.
+   */
+  async withReadOnlyTransaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN READ ONLY');
+
+      try {
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
+    } finally {
+      client.release();
+    }
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }

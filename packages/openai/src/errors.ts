@@ -10,7 +10,7 @@
  * truncated and flattened so an echoed email body can never be logged whole.
  */
 
-export type ModelCallPurpose = 'architect_proposal' | 'reviewer_decision';
+export type ModelCallPurpose = 'architect_proposal' | 'reviewer_decision' | 'query_planning';
 
 export type ModelFailureKind =
   /** The transport layer rejected the request before a response (DNS, TLS, connection reset). */

@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeArchitectModel,
+  FakeQueryPlannerModel,
   FakeReviewerModel,
   clinicLeadEmail,
   demoArchitectFixtures,
+  demoQueryPlannerFixtures,
   demoReviewerFixtures,
   depotLeadEmail,
   distributionCentreLeadEmail,
@@ -15,7 +17,7 @@ import type { EmailIngestionInput, IngestEmailResponse } from '@formless/contrac
 import { FormlessDatabase, runMigrations } from '@formless/database';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app.js';
-import type { IngestionModels } from './models.js';
+import type { ApiModels } from './models.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const testTimeout = 20_000;
@@ -125,9 +127,17 @@ describe.skipIf(!databaseUrl)('Ingestion API (PostgreSQL-backed)', () => {
     const ids = makeDemoSchemaIds();
     const reviewerFixtures = structuredClone(demoReviewerFixtures);
     rewriteFixtureIds(reviewerFixtures, ids);
-    const models: IngestionModels = {
+    const models: ApiModels = {
       architect: new FakeArchitectModel(freshArchitectFixtures()),
       reviewer: new FakeReviewerModel(reviewerFixtures),
+      planner: new FakeQueryPlannerModel(
+        demoQueryPlannerFixtures({
+          leadsTableId: ids.leadsTableId,
+          budgetColumnId: ids.budgetColumnId,
+          supportTableId: ids.supportTableId,
+          blockedColumnId: ids.blockedColumnId,
+        }),
+      ),
       label: 'fake',
     };
     const app = await buildApp({
@@ -395,6 +405,7 @@ describe.skipIf(!databaseUrl)('Ingestion API (PostgreSQL-backed)', () => {
         models: {
           architect: new FakeArchitectModel(freshArchitectFixtures()),
           reviewer: rejectionReviewer,
+          planner: new FakeQueryPlannerModel({}),
           label: 'fake',
         },
       });

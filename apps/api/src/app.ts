@@ -4,10 +4,13 @@ import {
   healthResponseSchema,
   ingestEmailResponseSchema,
   ingestionResponseSchema,
+  naturalLanguageQueryInputSchema,
+  queryResponseSchema,
   schemaEventsResponseSchema,
   workspaceIdSchema,
   type HealthResponse,
   type IngestionResponse,
+  type QueryResponse,
   type SchemaEventsResponse,
 } from '@formless/contracts';
 import { ReviewerRejectionError } from '@formless/core';
@@ -26,7 +29,13 @@ import {
   SchemaConflictError,
   type IngestEmailOutcome,
 } from './ingestion-service.js';
-import { createOpenAiModels, type IngestionModels } from './models.js';
+import { createOpenAiModels, type ApiModels } from './models.js';
+import {
+  QueryPlanError,
+  QueryService,
+  QueryTableNotFoundError,
+  QueryWorkspaceNotFoundError,
+} from './query-service.js';
 
 const packageVersion = '0.1.0';
 
@@ -36,7 +45,7 @@ export interface BuildAppOptions {
   /** Database override; defaults to `FormlessDatabase.fromEnv()`. */
   database?: FormlessDatabase;
   /** Model override; defaults to the OpenAI adapter when `OPENAI_API_KEY` is set. */
-  models?: IngestionModels;
+  models?: ApiModels;
   /** Environment used for model configuration resolution; defaults to `process.env`. */
   env?: Record<string, string | undefined>;
   /** ID generator override for deterministic tests; defaults to random UUIDs. */
@@ -118,6 +127,32 @@ export function mapIngestionError(error: unknown): never {
   throw error;
 }
 
+/**
+ * Maps query pipeline failures onto the API error contract, mirroring
+ * {@link mapIngestionError}. Client-input violations answer 400/404;
+ * planner-output violations answer 502 because they are server-side model
+ * failures, never malformed client requests.
+ */
+export function mapQueryError(error: unknown): never {
+  if (error instanceof QueryWorkspaceNotFoundError || error instanceof QueryTableNotFoundError) {
+    throw new HttpError(404, error.message);
+  }
+  if (error instanceof QueryPlanError) {
+    throw new HttpError(502, `Model output did not satisfy the query contract: ${error.message}`);
+  }
+  if (error instanceof OpenAiConfigError) {
+    throw new HttpError(503, 'Query is unavailable: OpenAI is not configured on the server.');
+  }
+  if (error instanceof ModelCallFailure) {
+    throw new HttpError(502, `Model call failed: ${error.message}`);
+  }
+  if (error instanceof ZodError) {
+    // Contract violations from model output or stored state, not client input.
+    throw new HttpError(502, 'Model output did not satisfy the query contract.');
+  }
+  throw error;
+}
+
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -149,7 +184,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const workspaces = new WorkspaceRepository();
   const ingestionsRepository = new IngestionRepository();
   const schemaEventsRepository = new SchemaEventRepository();
-  let models: IngestionModels | undefined = options.models;
+  let models: ApiModels | undefined = options.models;
   if (models === undefined) {
     try {
       models = createOpenAiModels(options.env ?? process.env);
@@ -170,6 +205,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           modelLabel: models.label,
           ...(options.generateId === undefined ? {} : { generateId: options.generateId }),
         });
+  const queryService =
+    models === undefined ? undefined : new QueryService({ database, planner: models.planner });
 
   app.get('/api/v1/health', async (): Promise<HealthResponse> => {
     const response: HealthResponse = {
@@ -235,6 +272,31 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
     const response: SchemaEventsResponse = { events: page.events, total: page.total };
     return schemaEventsResponseSchema.parse(response);
+  });
+
+  app.post('/api/v1/workspaces/:workspaceId/query', async (request) => {
+    const workspaceId = requireWorkspaceId(request);
+    const body = parseOr400(naturalLanguageQueryInputSchema, request.body);
+
+    if (queryService === undefined) {
+      throw new HttpError(
+        503,
+        'Query is unavailable: OPENAI_API_KEY is not configured on the server.',
+      );
+    }
+
+    let response: QueryResponse;
+    try {
+      response = await queryService.runQuery({
+        workspaceId,
+        question: body.question,
+        ...(body.tableId === undefined ? {} : { tableId: body.tableId }),
+      });
+    } catch (error) {
+      mapQueryError(error);
+    }
+
+    return queryResponseSchema.parse(response);
   });
 
   return app;

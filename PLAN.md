@@ -532,6 +532,14 @@ fake model covers every test, and the real OpenAI adapter activates only when
 
 ### Milestone 6 — Query engine and API
 
+**Status: implemented and covered by network-free tests plus PostgreSQL-backed
+integration tests that skip unless `TEST_DATABASE_URL` is set. The planner is
+exercised through a deterministic fake with no key and no network; the OpenAI
+adapter activates only when a server key is configured. Queries are validated
+with Zod, compiled to parameterized SQL over internal ids only with the limit
+capped at 200 and workspace isolation in every predicate, and executed inside
+read-only transactions.**
+
 - Query DSL validation.
 - JSONB SQL compiler.
 - Query planner prompt and adapter.

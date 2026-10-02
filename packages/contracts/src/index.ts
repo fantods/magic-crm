@@ -153,6 +153,103 @@ export const schemaEventsResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+export const comparisonOperatorSchema = z.enum([
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'contains',
+  'in',
+]);
+
+export const queryValueSchema = z.union([
+  z.string().max(2_000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z
+    .array(z.union([z.string().max(2_000), z.number()]))
+    .min(1)
+    .max(1_000),
+]);
+
+/**
+ * Recursive query filter (PLAN.md, "Structured DSL"). Logical nodes combine
+ * children with AND/OR; comparison nodes test one column value.
+ */
+export type QueryFilter =
+  | {
+      kind: 'logical';
+      operator: 'and' | 'or';
+      children: QueryFilter[];
+    }
+  | {
+      kind: 'comparison';
+      columnId: string;
+      operator: ComparisonOperator;
+      value: QueryValue;
+    };
+
+export const queryFilterSchema: z.ZodType<QueryFilter> = z.lazy(() =>
+  z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('logical'),
+      operator: z.enum(['and', 'or']),
+      children: z.array(queryFilterSchema).min(1).max(50),
+    }),
+    z.object({
+      kind: z.literal('comparison'),
+      columnId: z.string().min(1).max(200),
+      operator: comparisonOperatorSchema,
+      value: queryValueSchema,
+    }),
+  ]),
+);
+
+export const recordQueryOrderSchema = z.object({
+  columnId: z.string().min(1).max(200),
+  direction: z.enum(['asc', 'desc']),
+});
+
+/**
+ * A structured record query. The workspace is always the authenticated path
+ * parameter, never a client/model choice the server trusts.
+ */
+export const recordQuerySchema = z.object({
+  workspaceId: workspaceIdSchema,
+  tableId: z.string().min(1).max(200),
+  filter: queryFilterSchema.optional(),
+  orderBy: recordQueryOrderSchema.optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+
+/** Input for the natural-language query endpoint. */
+export const naturalLanguageQueryInputSchema = z.object({
+  question: z.string().trim().min(1).max(2_000),
+  tableId: z.string().min(1).max(200).optional(),
+});
+
+/**
+ * Output of the query planner model pass: the structured query (without the
+ * workspace, which the server injects), a human-readable interpretation, and
+ * any ambiguity warnings.
+ */
+export const queryPlanOutputSchema = z.object({
+  query: recordQuerySchema.omit({ workspaceId: true }),
+  interpretation: z.string().trim().min(1).max(4_000),
+  warnings: z.array(z.string().trim().min(1).max(2_000)).max(20),
+});
+
+/** Response of `POST /workspaces/:workspaceId/query`. */
+export const queryResponseSchema = z.object({
+  query: recordQuerySchema,
+  interpretation: z.string().min(1).max(4_000),
+  warnings: z.array(z.string().min(1).max(2_000)).max(20),
+  records: z.array(recordSchema).max(200),
+});
+
 export const healthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('formless-api'),
@@ -178,3 +275,10 @@ export type IngestEmailResponse = z.infer<typeof ingestEmailResponseSchema>;
 export type IngestionResponse = z.infer<typeof ingestionResponseSchema>;
 export type SchemaEventsResponse = z.infer<typeof schemaEventsResponseSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+export type ComparisonOperator = z.infer<typeof comparisonOperatorSchema>;
+export type QueryValue = z.infer<typeof queryValueSchema>;
+export type RecordQueryOrder = z.infer<typeof recordQueryOrderSchema>;
+export type RecordQuery = z.infer<typeof recordQuerySchema>;
+export type NaturalLanguageQueryInput = z.infer<typeof naturalLanguageQueryInputSchema>;
+export type QueryPlanOutput = z.infer<typeof queryPlanOutputSchema>;
+export type QueryResponse = z.infer<typeof queryResponseSchema>;

@@ -1,4 +1,5 @@
 export { FakeArchitectModel, FakeReviewerModel } from './fake-models.js';
+export { FakeQueryPlannerModel } from './fake-query-planner.js';
 export {
   clinicLeadEmail,
   depotLeadEmail,
@@ -15,3 +16,10 @@ export {
   demoArchitectFixtures,
   demoReviewerFixtures,
 } from './demo-model-fixtures.js';
+export {
+  DEMO_BLOCKED_TICKETS_QUESTION,
+  DEMO_BUDGET_QUESTION,
+  demoQueryPlannerFixtures,
+  demoQueryPlannerFixturesWithDemoIds,
+  type DemoQuerySchemaIds,
+} from './demo-query-fixtures.js';

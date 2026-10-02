@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { architectProposalSchema, reviewerDecisionSchema } from '@formless/core';
-import { sourceEvidenceSchema } from '@formless/contracts';
+import {
+  queryPlanOutputSchema,
+  recordQuerySchema,
+  sourceEvidenceSchema,
+} from '@formless/contracts';
 import {
   architectProposalJsonSchema,
   assertStrictModeCompliant,
+  queryPlanJsonSchema,
   reviewerDecisionJsonSchema,
 } from './structured-schemas.js';
 
@@ -70,6 +75,34 @@ const reviewerDecisionWire = {
   ],
 };
 
+const queryPlanWire = {
+  query: {
+    tableId: '00000000-0000-4000-8000-000000000001',
+    filter: {
+      kind: 'logical',
+      operator: 'or',
+      children: [
+        {
+          kind: 'comparison',
+          columnId: '00000000-0000-4000-8000-000000000003',
+          operator: 'gt',
+          value: 5000,
+        },
+        {
+          kind: 'comparison',
+          columnId: '00000000-0000-4000-8000-000000000002',
+          operator: 'in',
+          value: ['acme', 'globex'],
+        },
+      ],
+    },
+    orderBy: null,
+    limit: null,
+  },
+  interpretation: 'Leads with a budget above 5000 or a company named acme or globex.',
+  warnings: ['The time frame was not specified; all history is searched.'],
+};
+
 function sortedKeys(value: Record<string, unknown>): string[] {
   return Object.keys(value).sort();
 }
@@ -80,12 +113,21 @@ describe('structured-output schemas', () => {
     expect(() => assertStrictModeCompliant(reviewerDecisionJsonSchema)).not.toThrow();
   });
 
+  it('satisfy the OpenAI strict-mode structural rules', () => {
+    expect(() => assertStrictModeCompliant(architectProposalJsonSchema)).not.toThrow();
+    expect(() => assertStrictModeCompliant(reviewerDecisionJsonSchema)).not.toThrow();
+    expect(() => assertStrictModeCompliant(queryPlanJsonSchema)).not.toThrow();
+  });
+
   it('accept wire-shape fixtures', () => {
     const architectValidate = ajv.compile(architectProposalJsonSchema);
     expect(architectValidate(architectProposalWire)).toBe(true);
 
     const reviewerValidate = ajv.compile(reviewerDecisionJsonSchema);
     expect(reviewerValidate(reviewerDecisionWire)).toBe(true);
+
+    const queryPlanValidate = ajv.compile(queryPlanJsonSchema);
+    expect(queryPlanValidate(queryPlanWire)).toBe(true);
   });
 
   it('reject invalid wire output', () => {
@@ -106,6 +148,26 @@ describe('structured-output schemas', () => {
     ).toBe(false);
     const reviewerValidate = ajv.compile(reviewerDecisionJsonSchema);
     expect(reviewerValidate({ ...reviewerDecisionWire, fields: undefined })).toBe(false);
+
+    const queryPlanValidate = ajv.compile(queryPlanJsonSchema);
+    expect(
+      queryPlanValidate({ ...queryPlanWire, query: { ...queryPlanWire.query, tableId: 42 } }),
+    ).toBe(false);
+    expect(
+      queryPlanValidate({
+        ...queryPlanWire,
+        query: {
+          ...queryPlanWire.query,
+          filter: {
+            kind: 'comparison',
+            columnId: 'c1',
+            operator: 'between',
+            value: 1,
+          },
+        },
+      }),
+    ).toBe(false);
+    expect(queryPlanValidate({ ...queryPlanWire, workspaceId: 'demo' })).toBe(false);
   });
 
   it('are key-equivalent to the Zod domain contracts', () => {
@@ -125,6 +187,14 @@ describe('structured-output schemas', () => {
     expect(sortedKeys(reviewerDecisionJsonSchema.properties!)).toEqual(
       sortedKeys(reviewerDecisionSchema.shape),
     );
+
+    expect(sortedKeys(queryPlanJsonSchema.properties!)).toEqual(
+      sortedKeys(queryPlanOutputSchema.shape),
+    );
+    // The planner wire schema never carries a workspace: the server injects it.
+    const wireQueryKeys = sortedKeys(queryPlanJsonSchema.properties!.query!.properties!);
+    expect(wireQueryKeys).toEqual(sortedKeys(recordQuerySchema.omit({ workspaceId: true }).shape));
+    expect(wireQueryKeys).not.toContain('workspaceId');
   });
 
   it('use the same column type enum as the contracts', () => {

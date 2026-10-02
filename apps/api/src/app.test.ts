@@ -116,3 +116,53 @@ describe('Ingestion API contract (network-free)', () => {
     }
   });
 });
+
+describe('Query API contract (network-free)', () => {
+  it('rejects malformed question bodies with the standard error shape', async () => {
+    const app = await buildApp({ env: {} });
+
+    try {
+      const missing = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces/demo/query',
+        payload: {},
+      });
+      expect(missing.statusCode).toBe(400);
+      expect(missing.json().statusCode).toBe(400);
+      expect(missing.json().error).toBe('Bad Request');
+
+      const blank = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces/demo/query',
+        payload: { question: '   ' },
+      });
+      expect(blank.statusCode).toBe(400);
+
+      const badSlug = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces/Not_A_Slug/query',
+        payload: { question: 'Which leads have a budget over 5000?' },
+      });
+      expect(badSlug.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('answers 503 when no model credentials are configured', async () => {
+    const app = await buildApp({ env: {} });
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces/demo/query',
+        payload: { question: 'Which leads have a budget over 5000?' },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json().message).toContain('OPENAI_API_KEY');
+    } finally {
+      await app.close();
+    }
+  });
+});

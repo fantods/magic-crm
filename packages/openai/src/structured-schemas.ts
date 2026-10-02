@@ -208,6 +208,91 @@ const reviewerFieldDecisionSchema: JsonSchema = {
   ],
 };
 
+const queryValueJsonSchema: JsonSchema = {
+  anyOf: [
+    { type: 'string' },
+    { type: 'number' },
+    { type: 'boolean' },
+    { type: 'null' },
+    {
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+    },
+  ],
+};
+
+/**
+ * Recursive query filter wire shape, structurally equivalent to
+ * `queryFilterSchema` in `@formless/contracts`.
+ */
+const queryFilterJsonSchema: JsonSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['logical'] },
+        operator: { type: 'string', enum: ['and', 'or'] },
+        children: { type: 'array', items: { $ref: '#/$defs/queryFilter' } },
+      },
+      required: ['kind', 'operator', 'children'],
+      additionalProperties: false,
+    },
+    {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['comparison'] },
+        columnId: { type: 'string' },
+        operator: {
+          type: 'string',
+          enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'in'],
+        },
+        value: queryValueJsonSchema,
+      },
+      required: ['kind', 'columnId', 'operator', 'value'],
+      additionalProperties: false,
+    },
+  ],
+};
+
+const recordQueryWireSchema: JsonSchema = {
+  type: 'object',
+  properties: {
+    tableId: { type: 'string' },
+    filter: nullable(queryFilterJsonSchema),
+    orderBy: nullable({
+      type: 'object',
+      properties: {
+        columnId: { type: 'string' },
+        direction: { type: 'string', enum: ['asc', 'desc'] },
+      },
+      required: ['columnId', 'direction'],
+      additionalProperties: false,
+    }),
+    limit: nullable({ type: 'integer' }),
+  },
+  required: ['tableId', 'filter', 'orderBy', 'limit'],
+  additionalProperties: false,
+};
+
+/**
+ * Wire schema for the query planner pass. Structurally equivalent to
+ * `queryPlanOutputSchema` in `@formless/contracts`; the workspace is
+ * intentionally absent because the server injects it from the request path.
+ */
+export const queryPlanJsonSchema: JsonSchema = {
+  type: 'object',
+  properties: {
+    query: recordQueryWireSchema,
+    interpretation: { type: 'string' },
+    warnings: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['query', 'interpretation', 'warnings'],
+  additionalProperties: false,
+  $defs: {
+    queryFilter: queryFilterJsonSchema,
+  },
+};
+
 /**
  * Wire schema for the reviewer decision pass. Structurally equivalent to
  * `reviewerDecisionSchema` in `@formless/core/model-contracts`.

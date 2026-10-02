@@ -24,6 +24,7 @@ export {
 export {
   architectProposalJsonSchema,
   assertStrictModeCompliant,
+  queryPlanJsonSchema,
   reviewerDecisionJsonSchema,
   type JsonSchema,
 } from './structured-schemas.js';
@@ -42,9 +43,17 @@ export {
   type ReviewerPromptInput,
 } from './reviewer-prompt.js';
 export {
+  QUERY_PLANNER_SYSTEM_PROMPT,
+  buildQueryPlannerPrompt,
+  type QueryPlannerPrompt,
+  type QueryPlannerPromptInput,
+} from './query-planner-prompt.js';
+export {
   OpenAiArchitectModel,
+  OpenAiQueryPlannerModel,
   OpenAiReviewerModel,
   parseArchitectProposal,
+  parseQueryPlanOutput,
   parseReviewerDecision,
 } from './models.js';
 export {
