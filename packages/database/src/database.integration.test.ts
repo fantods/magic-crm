@@ -189,6 +189,65 @@ describe.skipIf(!databaseUrl)('PostgreSQL database core', () => {
   );
 
   it(
+    'lists schema events with pagination and fetches ingestions workspace-scoped',
+    async () => {
+      const paginatedWorkspaceId = newWorkspaceId();
+      await database.withTransaction(async (client) => {
+        await workspaces.ensure(client, paginatedWorkspaceId, 'Milestone 5 pagination workspace');
+        const ingestion = await ingestions.ensure(client, {
+          workspaceId: paginatedWorkspaceId,
+          idempotencyKey: `pagination-${randomUUID()}`,
+          input: { body: 'Pagination probe.' },
+        });
+
+        await schemaEvents.append(client, {
+          workspaceId: paginatedWorkspaceId,
+          ingestionId: ingestion.id,
+          events: [1, 2, 3].map((n) => ({
+            eventType: 'table_accepted' as const,
+            payload: { probe: n },
+            actor: { pass: 'test' },
+          })),
+        });
+      });
+
+      const page = await database.withTransaction((client) =>
+        schemaEvents.listPage(client, paginatedWorkspaceId, { limit: 2, offset: 0 }),
+      );
+      expect(page.events).toHaveLength(2);
+      expect(page.total).toBe(3);
+      expect(page.events.map((event) => event.sequence)).toEqual([1, 2]);
+
+      const lastPage = await database.withTransaction((client) =>
+        schemaEvents.listPage(client, paginatedWorkspaceId, { limit: 2, offset: 2 }),
+      );
+      expect(lastPage.events).toHaveLength(1);
+      expect(lastPage.total).toBe(3);
+
+      const scoped = await database.withTransaction(async (client) => {
+        const rows = await database.pool.query<{ id: string }>(
+          'SELECT id FROM ingestions WHERE workspace_id = $1',
+          [paginatedWorkspaceId],
+        );
+        const found = await ingestions.getInWorkspace(
+          client,
+          paginatedWorkspaceId,
+          rows.rows[0]!.id,
+        );
+        const wrongWorkspace = await ingestions.getInWorkspace(
+          client,
+          newWorkspaceId(),
+          rows.rows[0]!.id,
+        );
+        return { found, wrongWorkspace };
+      });
+      expect(scoped.found).not.toBeNull();
+      expect(scoped.wrongWorkspace).toBeNull();
+    },
+    testTimeout,
+  );
+
+  it(
     'isolates workspace schemas and prevents schema journal mutations',
     async () => {
       const isolatedWorkspaceId = newWorkspaceId();

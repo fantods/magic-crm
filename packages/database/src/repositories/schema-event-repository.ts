@@ -106,6 +106,35 @@ export class SchemaEventRepository {
     return result.rows.map(mapSchemaEventRow);
   }
 
+  async listPage(
+    executor: DatabaseExecutor,
+    workspaceId: string,
+    pagination: { limit?: number; offset?: number } = {},
+  ): Promise<{ events: SchemaEvent[]; total: number }> {
+    const id = workspaceIdSchema.parse(workspaceId);
+    const limit = Math.min(Math.max(Math.trunc(pagination.limit ?? 50), 1), 200);
+    const offset = Math.max(Math.trunc(pagination.offset ?? 0), 0);
+    const events = await executor.query(
+      `
+        SELECT id, workspace_id, sequence, ingestion_id, event_type, payload, actor, created_at
+        FROM schema_events
+        WHERE workspace_id = $1
+        ORDER BY sequence
+        LIMIT $2 OFFSET $3
+      `,
+      [id, limit, offset],
+    );
+    const total = await executor.query<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM schema_events WHERE workspace_id = $1',
+      [id],
+    );
+
+    return {
+      events: events.rows.map(mapSchemaEventRow),
+      total: Number(total.rows[0]!.total),
+    };
+  }
+
   async currentRevision(executor: DatabaseExecutor, workspaceId: string): Promise<number> {
     const id = workspaceIdSchema.parse(workspaceId);
     const result = await executor.query<{ revision: number }>(

@@ -518,6 +518,12 @@ live-key evaluation harness remains milestone 8 territory.**
 
 ### Milestone 5 — Ingestion API
 
+**Status: implemented and covered by network-free tests plus PostgreSQL-backed
+integration tests that skip unless `TEST_DATABASE_URL` is set. Ingestion runs
+through one transaction per the plan's concurrency sequence, the deterministic
+fake model covers every test, and the real OpenAI adapter activates only when
+`OPENAI_API_KEY` is configured on the server.**
+
 - `POST /ingestions`.
 - Single-transaction orchestration.
 - Idempotent replay.

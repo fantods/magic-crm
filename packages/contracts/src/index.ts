@@ -125,6 +125,34 @@ export const emailIngestionInputSchema = z.object({
   idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
+export const schemaDeltaSchema = z.object({
+  table: recordTableSchema,
+  tableCreated: z.boolean(),
+  newColumns: z.array(recordColumnSchema),
+  mergedColumns: z.array(recordColumnSchema),
+  schemaRevision: z.number().int().positive(),
+});
+
+export const ingestionResultSchema = z.object({
+  schemaDelta: schemaDeltaSchema,
+  record: recordSchema,
+});
+
+export const ingestEmailResponseSchema = z.object({
+  ingestion: ingestionSchema,
+  schemaDelta: schemaDeltaSchema,
+  record: recordSchema,
+});
+
+export const ingestionResponseSchema = z.object({
+  ingestion: ingestionSchema,
+});
+
+export const schemaEventsResponseSchema = z.object({
+  events: z.array(schemaEventSchema),
+  total: z.number().int().nonnegative(),
+});
+
 export const healthResponseSchema = z.object({
   status: z.literal('ok'),
   service: z.literal('formless-api'),
@@ -144,4 +172,9 @@ export type Record = z.infer<typeof recordSchema>;
 export type IngestionStatus = z.infer<typeof ingestionStatusSchema>;
 export type Ingestion = z.infer<typeof ingestionSchema>;
 export type EmailIngestionInput = z.infer<typeof emailIngestionInputSchema>;
+export type SchemaDelta = z.infer<typeof schemaDeltaSchema>;
+export type IngestionResult = z.infer<typeof ingestionResultSchema>;
+export type IngestEmailResponse = z.infer<typeof ingestEmailResponseSchema>;
+export type IngestionResponse = z.infer<typeof ingestionResponseSchema>;
+export type SchemaEventsResponse = z.infer<typeof schemaEventsResponseSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;

@@ -44,10 +44,25 @@ importers:
       '@formless/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@formless/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@formless/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@formless/openai':
+        specifier: workspace:*
+        version: link:../../packages/openai
       fastify:
         specifier: ^5.1.0
         version: 5.12.5
+      zod:
+        specifier: ^4.1.0
+        version: 4.6.5
     devDependencies:
+      '@formless/testing':
+        specifier: workspace:*
+        version: link:../../packages/testing
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.1

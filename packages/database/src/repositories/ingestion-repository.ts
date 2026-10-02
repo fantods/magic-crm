@@ -40,6 +40,25 @@ export class IngestionRepository {
     return result.rows[0] ? mapIngestionRow(result.rows[0]) : null;
   }
 
+  /** Workspace-isolated lookup: a known ingestion id in the wrong workspace reads as missing. */
+  async getInWorkspace(
+    executor: DatabaseExecutor,
+    workspaceId: string,
+    ingestionId: string,
+  ): Promise<Ingestion | null> {
+    const id = workspaceIdSchema.parse(workspaceId);
+    const result = await executor.query(
+      `
+        SELECT id, workspace_id, idempotency_key, status, input, normalized, result, error, created_at, updated_at
+        FROM ingestions
+        WHERE workspace_id = $1 AND id = $2
+      `,
+      [id, ingestionId],
+    );
+
+    return result.rows[0] ? mapIngestionRow(result.rows[0]) : null;
+  }
+
   async getByIdempotencyKey(
     executor: DatabaseExecutor,
     workspaceId: string,

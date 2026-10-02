@@ -10,6 +10,10 @@ export {
 export { migrations } from './migrations/index.js';
 export { IngestionRepository } from './repositories/ingestion-repository.js';
 export { RecordRepository } from './repositories/record-repository.js';
-export { SchemaCatalogRepository } from './repositories/schema-catalog-repository.js';
+export {
+  SchemaCatalogRepository,
+  type WorkspaceSchema,
+} from './repositories/schema-catalog-repository.js';
 export { SchemaEventRepository } from './repositories/schema-event-repository.js';
 export { WorkspaceRepository } from './repositories/workspace-repository.js';
+export type { DatabaseExecutor } from './mapping.js';
