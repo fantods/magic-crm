@@ -504,6 +504,10 @@ A small, separately invoked evaluation suite exercises OpenAI. It is excluded fr
 
 ### Milestone 4 — OpenAI integration
 
+**Status: implemented and covered by network-free tests. The adapter is exercised
+through an injectable fetch double, so no normal test run contacts OpenAI; a
+live-key evaluation harness remains milestone 8 territory.**
+
 - OpenAI client adapter.
 - Structured-output schemas.
 - Architect prompt.

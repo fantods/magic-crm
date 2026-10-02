@@ -29,6 +29,18 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': 'warn',
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@formless/openai',
+              message:
+                'The OpenAI adapter is server-side only. Importing it into the browser bundle would expose the API key.',
+            },
+          ],
+        },
+      ],
     },
   },
   {

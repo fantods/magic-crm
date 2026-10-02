@@ -137,6 +137,31 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@24.19.1)(tsx@4.23.15)
 
+  packages/openai:
+    dependencies:
+      '@formless/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@formless/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.1.0
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
+      ajv:
+        specifier: ^8.17.1
+        version: 8.20.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@24.19.1)(tsx@4.23.15)
+
   packages/testing:
     dependencies:
       '@formless/contracts':

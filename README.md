@@ -121,7 +121,6 @@ packages/
   contracts/ Shared TypeScript contracts and Zod schemas
   database/  PostgreSQL migrations, repositories, and transaction helpers
   core/       Deterministic ingestion and schema planning logic
+  openai/     OpenAI Responses API adapter, structured-output schemas, and prompts
   testing/    Network-free fixtures and fake model implementations
 ```
-
-Later milestones add the `openai` package as implementation work begins.
