@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: formless-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: formless
+      POSTGRES_PASSWORD: formless
+      POSTGRES_DB: formless
+    ports:
+      - '5432:5432'
+    volumes:
+      - formless-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U formless -d formless']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  formless-postgres-data:
