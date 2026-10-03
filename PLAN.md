@@ -548,6 +548,15 @@ read-only transactions.**
 
 ### Milestone 7 — Demo web app
 
+**Status: implemented and covered by network-free Vitest/Testing Library UI
+tests plus PostgreSQL-backed integration tests that skip unless
+`TEST_DATABASE_URL` is set. The five demo panels talk only to the versioned
+`/api/v1` endpoints through the shared Zod contracts, which every response is
+validated against in the browser; the OpenAI key stays server-side and the UI
+surfaces the key requirement when ingestion or query answers 503. The two read
+endpoints the panels need (`GET /schema`, `GET /tables/:tableId/records`) were
+added from the API design above.**
+
 - App shell and design system.
 - Email paste form.
 - Schema catalogue view.

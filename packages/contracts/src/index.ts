@@ -153,6 +153,24 @@ export const schemaEventsResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+export const schemaCatalogTableSchema = z.object({
+  table: recordTableSchema,
+  columns: z.array(recordColumnSchema).max(500),
+});
+
+/** Response of `GET /workspaces/:workspaceId/schema`. */
+export const schemaCatalogResponseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  /** Current schema revision: the newest schema event sequence, 0 when empty. */
+  revision: z.number().int().nonnegative(),
+  tables: z.array(schemaCatalogTableSchema).max(500),
+});
+
+/** Response of `GET /workspaces/:workspaceId/tables/:tableId/records`. */
+export const recordsResponseSchema = z.object({
+  records: z.array(recordSchema).max(200),
+});
+
 export const comparisonOperatorSchema = z.enum([
   'eq',
   'neq',
@@ -274,6 +292,9 @@ export type IngestionResult = z.infer<typeof ingestionResultSchema>;
 export type IngestEmailResponse = z.infer<typeof ingestEmailResponseSchema>;
 export type IngestionResponse = z.infer<typeof ingestionResponseSchema>;
 export type SchemaEventsResponse = z.infer<typeof schemaEventsResponseSchema>;
+export type SchemaCatalogTable = z.infer<typeof schemaCatalogTableSchema>;
+export type SchemaCatalogResponse = z.infer<typeof schemaCatalogResponseSchema>;
+export type RecordsResponse = z.infer<typeof recordsResponseSchema>;
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export type ComparisonOperator = z.infer<typeof comparisonOperatorSchema>;
 export type QueryValue = z.infer<typeof queryValueSchema>;

@@ -6,13 +6,16 @@ This repository is a production-oriented technical demo. It does **not** use Evo
 
 ## Current status
 
-Milestone 3 is implemented:
+Milestone 7 is implemented:
 
 - pnpm monorepo
 - strict TypeScript
-- Fastify API scaffold with `/api/v1/health`
-- Vite + React demo shell
-- shared Zod contracts
+- Fastify API with the versioned `/api/v1` surface (health, ingestion, schema
+  catalogue, schema journal, records, natural-language query)
+- Vite + React demo UI with the five demo panels: email paste form with example
+  buttons, generated schema catalogue, dynamic record grid with expandable
+  evidence, append-only journal, and the natural-language query interface
+- shared Zod contracts validating every API response in the browser
 - PostgreSQL 16 Docker service
 - PostgreSQL migrations
 - workspace, ingestion, schema journal, schema catalog, and record repositories
@@ -23,6 +26,7 @@ Milestone 3 is implemented:
 - deterministic schema delta calculator
 - column synonym folding and source evidence validation
 - network-free fake model fixtures
+- OpenAI Responses API adapter with structured outputs (server-side only)
 - ESLint, Prettier, and Vitest setup
 
 The full architecture and delivery plan is in [`PLAN.md`](./PLAN.md).
@@ -83,6 +87,24 @@ pnpm dev:web
 - Web: <http://127.0.0.1:5173>
 
 Copy `.env.example` to `.env` to change the API host, port, CORS origin, or web API URL.
+
+### Run the demo
+
+With the API and web app running (`pnpm dev:api`, `pnpm dev:web` after
+`pnpm db:up` and `pnpm db:migrate`), open <http://127.0.0.1:5173> and:
+
+1. Click an example email button (or paste your own) and press **Ingest email**.
+   Three industry leads fold into one `locations_count` column with the values
+   `3`, `6`, and `18`; the support ticket creates a separate `support_tickets`
+   table. Watch the generated schema, the record grid with its expandable
+   source-phrase evidence, and the append-only journal react.
+2. Ask **“Which leads have a budget over 5000?”** in the query panel (the
+   example button fills it in) and inspect the interpreted structured query and
+   its result.
+
+Live ingestion and query need a server-side `OPENAI_API_KEY` in the API
+environment. Without it the UI says so explicitly; the key never reaches the
+browser. A full setup guide arrives with milestone 8.
 
 ## Quality commands
 

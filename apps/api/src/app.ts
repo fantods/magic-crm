@@ -6,17 +6,23 @@ import {
   ingestionResponseSchema,
   naturalLanguageQueryInputSchema,
   queryResponseSchema,
+  recordsResponseSchema,
+  schemaCatalogResponseSchema,
   schemaEventsResponseSchema,
   workspaceIdSchema,
   type HealthResponse,
   type IngestionResponse,
   type QueryResponse,
+  type RecordsResponse,
+  type SchemaCatalogResponse,
   type SchemaEventsResponse,
 } from '@formless/contracts';
 import { ReviewerRejectionError } from '@formless/core';
 import {
   FormlessDatabase,
   IngestionRepository,
+  RecordRepository,
+  SchemaCatalogRepository,
   SchemaEventRepository,
   WorkspaceRepository,
 } from '@formless/database';
@@ -184,6 +190,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const workspaces = new WorkspaceRepository();
   const ingestionsRepository = new IngestionRepository();
   const schemaEventsRepository = new SchemaEventRepository();
+  const schemaCatalogRepository = new SchemaCatalogRepository();
+  const recordRepository = new RecordRepository();
   let models: ApiModels | undefined = options.models;
   if (models === undefined) {
     try {
@@ -259,6 +267,25 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     return ingestionResponseSchema.parse(response);
   });
 
+  app.get('/api/v1/workspaces/:workspaceId/schema', async (request) => {
+    const workspaceId = requireWorkspaceId(request);
+
+    const response: SchemaCatalogResponse = await database.withTransaction(async (client) => {
+      await requireWorkspace(workspaces, client, workspaceId);
+      const [schema, revision] = await Promise.all([
+        schemaCatalogRepository.getSchema(client, workspaceId),
+        schemaEventsRepository.currentRevision(client, workspaceId),
+      ]);
+      return {
+        workspaceId,
+        revision,
+        tables: schema.tables.map(({ table, columns }) => ({ table, columns: [...columns] })),
+      };
+    });
+
+    return schemaCatalogResponseSchema.parse(response);
+  });
+
   app.get('/api/v1/workspaces/:workspaceId/schema/events', async (request) => {
     const workspaceId = requireWorkspaceId(request);
     const query = (request.query ?? {}) as { limit?: unknown; offset?: unknown };
@@ -272,6 +299,25 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
     const response: SchemaEventsResponse = { events: page.events, total: page.total };
     return schemaEventsResponseSchema.parse(response);
+  });
+
+  app.get('/api/v1/workspaces/:workspaceId/tables/:tableId/records', async (request) => {
+    const workspaceId = requireWorkspaceId(request);
+    const { tableId } = request.params as { tableId: string };
+    const query = (request.query ?? {}) as { limit?: unknown };
+    const limit = parsePaginationValue('limit', query.limit, 200);
+
+    const records = await database.withTransaction(async (client) => {
+      await requireWorkspace(workspaces, client, workspaceId);
+      const table = await schemaCatalogRepository.getTable(client, workspaceId, tableId);
+      if (!table) {
+        throw new HttpError(404, `Record table ${tableId} was not found`);
+      }
+      return recordRepository.listByTable(client, workspaceId, tableId, limit);
+    });
+
+    const response: RecordsResponse = { records };
+    return recordsResponseSchema.parse(response);
   });
 
   app.post('/api/v1/workspaces/:workspaceId/query', async (request) => {
