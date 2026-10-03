@@ -8,3 +8,6 @@ coverage/
 .env
 .env.local
 *.log
+.browsers/
+test-results/
+playwright-report/

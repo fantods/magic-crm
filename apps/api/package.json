@@ -9,10 +9,13 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run src",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev:e2e": "tsx src/e2e-server.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
     "@formless/contracts": "workspace:*",
     "@formless/core": "workspace:*",
     "@formless/database": "workspace:*",

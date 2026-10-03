@@ -1,4 +1,6 @@
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import {
   emailIngestionInputSchema,
   healthResponseSchema,
@@ -42,6 +44,7 @@ import {
   QueryTableNotFoundError,
   QueryWorkspaceNotFoundError,
 } from './query-service.js';
+import { captureError, OperationalLogger, silentLogger } from './observability/index.js';
 
 const packageVersion = '0.1.0';
 
@@ -56,6 +59,63 @@ export interface BuildAppOptions {
   env?: Record<string, string | undefined>;
   /** ID generator override for deterministic tests; defaults to random UUIDs. */
   generateId?: () => string;
+  /**
+   * Rate-limit override for tests; defaults resolve from `RATE_LIMIT_*` env
+   * vars with a conservative per-IP default.
+   */
+  rateLimit?: RateLimitOptions;
+  /**
+   * Sink for structured operational log lines (one JSON object per line);
+   * defaults to `console.log`. Only used when `logger` is enabled.
+   */
+  logSink?: (line: string) => void;
+}
+
+/**
+ * Per-IP rate limiting for the API. Enabled by default with a conservative
+ * limit; operators override via `RATE_LIMIT_MAX`, `RATE_LIMIT_TIME_WINDOW_MS`,
+ * and `RATE_LIMIT_ENABLED` environment variables.
+ */
+export interface RateLimitOptions {
+  readonly enabled?: boolean;
+  /** Maximum requests per IP inside the time window. */
+  readonly max?: number;
+  /** Time window in milliseconds. */
+  readonly timeWindowMs?: number;
+}
+
+function parsePositiveIntegerEnv(
+  env: Record<string, string | undefined>,
+  name: string,
+  fallback: number,
+): number {
+  const raw = env[name]?.trim();
+  if (raw === undefined || raw === '') {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function resolveRateLimitOptions(
+  override: RateLimitOptions | undefined,
+  env: Record<string, string | undefined>,
+): { enabled: boolean; max: number; timeWindowMs: number } {
+  const enabledRaw = env.RATE_LIMIT_ENABLED?.trim().toLowerCase();
+  const enabled =
+    override?.enabled ??
+    (enabledRaw === undefined || enabledRaw === ''
+      ? true
+      : enabledRaw !== 'false' && enabledRaw !== '0');
+  return {
+    enabled,
+    max: override?.max ?? parsePositiveIntegerEnv(env, 'RATE_LIMIT_MAX', 300),
+    timeWindowMs:
+      override?.timeWindowMs ?? parsePositiveIntegerEnv(env, 'RATE_LIMIT_TIME_WINDOW_MS', 60_000),
+  };
 }
 
 class HttpError extends Error {
@@ -178,15 +238,57 @@ function parsePaginationValue(name: 'limit' | 'offset', value: unknown, fallback
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
+  const env = options.env ?? process.env;
   const app = Fastify({
-    logger: options.logger ?? false,
+    logger: options.logger
+      ? {
+          level: 'info',
+          // Defense in depth for the plan's privacy decision: request bodies
+          // and credentials never reach the log, even if a serializer changes.
+          redact: ['req.body', 'req.headers.authorization', 'req.headers.cookie'],
+          ...(options.logSink === undefined ? {} : { stream: { write: options.logSink } }),
+        }
+      : false,
   });
+  const operational = options.logger
+    ? new OperationalLogger(options.logSink === undefined ? {} : { writeLine: options.logSink })
+    : silentLogger;
+
+  // Security headers with sensible defaults; the API serves JSON only, so the
+  // helmet defaults (no frame ancestry, nosniff, restrictive CSP) all apply.
+  await app.register(helmet);
 
   await app.register(cors, {
     origin: options.corsOrigin ?? 'http://localhost:5173',
   });
 
-  const database = options.database ?? FormlessDatabase.fromEnv();
+  const rateLimitOptions = resolveRateLimitOptions(options.rateLimit, env);
+  if (rateLimitOptions.enabled) {
+    await app.register(rateLimit, {
+      max: rateLimitOptions.max,
+      timeWindow: rateLimitOptions.timeWindowMs,
+    });
+  }
+
+  // Server-side error telemetry hook: no-op by default, operator-wireable.
+  // Only server failures are reported; client mistakes are not errors.
+  app.addHook('onError', async (request, reply, error) => {
+    if (reply.statusCode >= 500) {
+      operational.error('request_error', {
+        method: request.method,
+        url: request.url,
+        status_code: reply.statusCode,
+        error_name: error instanceof Error ? error.name : 'Unknown',
+      });
+      captureError(error, {
+        route: request.url,
+        method: request.method,
+        statusCode: reply.statusCode,
+      });
+    }
+  });
+
+  const database = options.database ?? FormlessDatabase.fromEnv(env);
   const workspaces = new WorkspaceRepository();
   const ingestionsRepository = new IngestionRepository();
   const schemaEventsRepository = new SchemaEventRepository();
@@ -195,7 +297,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   let models: ApiModels | undefined = options.models;
   if (models === undefined) {
     try {
-      models = createOpenAiModels(options.env ?? process.env);
+      models = createOpenAiModels(env, (metadata) => operational.modelCall(metadata));
     } catch (error) {
       if (!(error instanceof OpenAiConfigError)) {
         throw error;
@@ -241,6 +343,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     try {
       outcome = await ingestionService.ingestEmail({ ...body, workspaceId });
     } catch (error) {
+      captureError(error, {
+        route: 'POST /api/v1/workspaces/:workspaceId/ingestions',
+        workspaceId,
+      });
       await ingestionService.recordFailure({ ...body, workspaceId }, describeError(error));
       mapIngestionError(error);
     }
@@ -339,6 +445,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         ...(body.tableId === undefined ? {} : { tableId: body.tableId }),
       });
     } catch (error) {
+      captureError(error, {
+        route: 'POST /api/v1/workspaces/:workspaceId/query',
+        workspaceId,
+      });
       mapQueryError(error);
     }
 

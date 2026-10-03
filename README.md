@@ -6,30 +6,39 @@ This repository is a production-oriented technical demo. It does **not** use Evo
 
 ## Current status
 
-Milestone 7 is implemented:
+All eight plan milestones are implemented. The highlights:
 
-- pnpm monorepo
-- strict TypeScript
+- pnpm monorepo with strict TypeScript throughout
 - Fastify API with the versioned `/api/v1` surface (health, ingestion, schema
   catalogue, schema journal, records, natural-language query)
 - Vite + React demo UI with the five demo panels: email paste form with example
   buttons, generated schema catalogue, dynamic record grid with expandable
   evidence, append-only journal, and the natural-language query interface
 - shared Zod contracts validating every API response in the browser
-- PostgreSQL 16 Docker service
-- PostgreSQL migrations
+- PostgreSQL 16 Docker service, migrations with verified up/down cycles, and an
+  append-only `schema_events` journal guarded by a database trigger
 - workspace, ingestion, schema journal, schema catalog, and record repositories
-- transaction and advisory-lock helpers
+- transaction and advisory-lock helpers; a concurrency stress test proves five
+  concurrent writes to one logical table create five records
 - idempotency constraints for ingestions and records
-- normalized email model
-- architect and reviewer model contracts
-- deterministic schema delta calculator
-- column synonym folding and source evidence validation
-- network-free fake model fixtures
-- OpenAI Responses API adapter with structured outputs (server-side only)
+- OpenAI Responses API adapter with structured outputs (server-side only),
+  exercised through a deterministic fake model in every test and in the e2e run
+- production hardening (Milestone 8):
+  - security headers (`@fastify/helmet`) with sensible defaults
+  - per-IP rate limiting (`@fastify/rate-limit`) with env overrides
+  - structured JSON operational logs, including model-call metadata
+    (purpose, latency, token counts, request IDs) — never email bodies
+  - no-op-by-default error telemetry hooks an operator can wire later
+  - an axe-core accessibility audit of the demo UI
+  - a Playwright end-to-end walkthrough of the three demo cases with the fake
+    model, so it needs no OpenAI key
 - ESLint, Prettier, and Vitest setup
 
-The full architecture and delivery plan is in [`PLAN.md`](./PLAN.md).
+The full architecture and delivery plan is in [`PLAN.md`](./PLAN.md); a
+step-by-step fresh-clone walkthrough is in
+[`docs/local-setup.md`](./docs/local-setup.md), and every acceptance criterion
+is mapped to its verification in
+[`docs/acceptance-verification.md`](./docs/acceptance-verification.md).
 
 ## Stack
 
@@ -43,9 +52,9 @@ The full architecture and delivery plan is in [`PLAN.md`](./PLAN.md).
 | Database        | PostgreSQL 16                                |
 | Validation      | Zod                                          |
 | AI              | OpenAI Responses API with structured outputs |
-| Tests           | Vitest                                       |
+| Tests           | Vitest, Testing Library, Playwright          |
 
-## Getting started
+## Getting started (fresh clone)
 
 Requirements:
 
@@ -53,45 +62,26 @@ Requirements:
 - pnpm 10
 - Docker with Compose
 
-Install dependencies:
-
 ```bash
-pnpm install
+pnpm install          # install dependencies
+pnpm db:up            # start PostgreSQL via Docker Compose
+cp .env.example .env  # optional; defaults are sensible
+pnpm db:migrate       # apply database migrations
+pnpm dev:api          # terminal 1: Fastify API on http://127.0.0.1:3000
+pnpm dev:web          # terminal 2: demo UI on http://127.0.0.1:5173
 ```
 
-Start PostgreSQL:
+- API health: <http://127.0.0.1:3000/api/v1/health>
+- Web demo: <http://127.0.0.1:5173>
 
-```bash
-pnpm db:up
-```
-
-Apply database migrations:
-
-```bash
-pnpm db:migrate
-```
-
-Start the API in one terminal:
-
-```bash
-pnpm dev:api
-```
-
-Start the web demo in another:
-
-```bash
-pnpm dev:web
-```
-
-- API: <http://127.0.0.1:3000/api/v1/health>
-- Web: <http://127.0.0.1:5173>
-
-Copy `.env.example` to `.env` to change the API host, port, CORS origin, or web API URL.
+The `.env` file configures the API host/port, CORS origin, rate limits,
+database URL, and the web app's API URL. `OPENAI_API_KEY` is optional: without
+a server-side key the demo UI says so explicitly, and with one the same
+endpoints run against the real model. The key never reaches the browser.
 
 ### Run the demo
 
-With the API and web app running (`pnpm dev:api`, `pnpm dev:web` after
-`pnpm db:up` and `pnpm db:migrate`), open <http://127.0.0.1:5173> and:
+With the API and web app running, open <http://127.0.0.1:5173> and:
 
 1. Click an example email button (or paste your own) and press **Ingest email**.
    Three industry leads fold into one `locations_count` column with the values
@@ -102,25 +92,34 @@ With the API and web app running (`pnpm dev:api`, `pnpm dev:web` after
    example button fills it in) and inspect the interpreted structured query and
    its result.
 
-Live ingestion and query need a server-side `OPENAI_API_KEY` in the API
-environment. Without it the UI says so explicitly; the key never reaches the
-browser. A full setup guide arrives with milestone 8.
+## Tests
 
-## Quality commands
+Quality commands (no network or database needed for the unit tier):
 
 ```bash
 pnpm build
 pnpm typecheck
-pnpm test
+pnpm test        # unit + contract + UI tests, network-free
 pnpm lint
 pnpm format:check
 ```
 
-Database integration tests are skipped by default. Run them against a disposable database with:
+PostgreSQL-backed integration tests (concurrency stress, migration up/down
+checks, repository and API integration) are skipped unless `TEST_DATABASE_URL`
+is set:
 
 ```bash
-TEST_DATABASE_URL=postgresql://formless:formless@127.0.0.1:5432/formless \
-  pnpm --filter @formless/database test
+pnpm db:up
+pnpm test:integration
+```
+
+Playwright end-to-end demo walkthrough (the plan's three demo cases against
+the fake model server, no OpenAI key required):
+
+```bash
+pnpm db:up
+pnpm e2e:install   # one-time: downloads Chromium into ./.browsers
+pnpm test:e2e
 ```
 
 Database lifecycle:
@@ -133,16 +132,31 @@ pnpm db:migrate
 pnpm db:migrate:status
 ```
 
+## Security and privacy posture
+
+- Parameterized SQL only; queries are validated Zod DSLs compiled to internal
+  IDs, executed read-only, with the result limit capped at 200.
+- `schema_events` is append-only: a database trigger rejects updates and
+  deletes, and application code contains no such statements.
+- The OpenAI key is read server-side only; the browser bundle is lint-blocked
+  from importing the OpenAI package.
+- Email bodies are sent to OpenAI by the server but never written to
+  application logs; log fields are constrained to operational metadata.
+- Rate limiting and security headers are on by default; overrides are
+  documented in `.env.example`.
+
 ## Repository layout
 
 ```text
 apps/
-  api/       Fastify HTTP API
+  api/       Fastify HTTP API (+ e2e-server.ts fake-model server)
   web/       Vite React demo interface
+e2e/         Playwright demo walkthrough
 packages/
   contracts/ Shared TypeScript contracts and Zod schemas
   database/  PostgreSQL migrations, repositories, and transaction helpers
-  core/       Deterministic ingestion and schema planning logic
-  openai/     OpenAI Responses API adapter, structured-output schemas, and prompts
-  testing/    Network-free fixtures and fake model implementations
+  core/      Deterministic ingestion and schema planning logic
+  openai/    OpenAI Responses API adapter, structured-output schemas, and prompts
+  testing/   Network-free fixtures and fake model implementations
+docs/        Local setup guide and acceptance-criteria verification
 ```

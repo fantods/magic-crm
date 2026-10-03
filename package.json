@@ -11,6 +11,9 @@
     "build": "pnpm -r --workspace-concurrency=1 build",
     "typecheck": "tsc -b tsconfig.json && pnpm -r typecheck",
     "test": "pnpm -r test",
+    "test:integration": "TEST_DATABASE_URL=postgresql://formless:formless@127.0.0.1:5432/formless pnpm -r test",
+    "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=$PWD/.browsers playwright test",
+    "e2e:install": "PLAYWRIGHT_BROWSERS_PATH=$PWD/.browsers playwright install chromium",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "@playwright/test": "^1.63.0",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.0",
     "eslint-plugin-react-hooks": "^5.2.0",

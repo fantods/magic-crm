@@ -568,6 +568,20 @@ added from the API design above.**
 
 ### Milestone 8 — Production hardening
 
+**Status: implemented. Security headers (`@fastify/helmet`) and per-IP rate
+limiting (`@fastify/rate-limit`, env-overridable) are on by default; the API
+emits structured JSON operational logs including the model adapter's call
+metadata (purpose, latency, token counts, request IDs) and never logs email
+bodies; error telemetry is a no-op-by-default hook surface with no third-party
+calls. Migration up/down cycles are verified against a disposable database
+alongside the append-only trigger checks; a concurrency stress test proves
+five concurrent writes to one logical table create five records; an axe-core
+audit holds the demo UI at zero detectable violations; and a Playwright
+walkthrough drives the three demo cases end to end against a dedicated
+e2e API server running the deterministic fake model, so it needs no OpenAI
+key. README, local setup guide, and acceptance-criteria verification are in
+`README.md`, `docs/local-setup.md`, and `docs/acceptance-verification.md`.**
+
 - Concurrency stress test.
 - Migration checks.
 - Security headers and CORS.
