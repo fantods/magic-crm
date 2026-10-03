@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    app.kubernetes.io/name: formless-web
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: formless
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: formless-web
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

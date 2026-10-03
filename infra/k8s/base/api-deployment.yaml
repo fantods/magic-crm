@@ -1,0 +1,115 @@
+# The Fastify API. The container entrypoint applies database migrations and
+# then serves on $PORT, so a Ready pod implies the migrations succeeded.
+#
+# Probes target the existing `/api/v1/health` endpoint. It answers once the
+# process is serving; database readiness is gated separately by the
+# `wait-for-postgres` init container, and the AWS overlay removes that init
+# container because there the database is the Terraform-provisioned RDS
+# instance (reached through DATABASE_URL, not the in-cluster service).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app.kubernetes.io/name: formless-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: formless
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: formless-api
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: formless-api
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: formless
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL at postgres:5432..."
+              i=0
+              until pg_isready -h postgres -p 5432 -U formless -d formless; do
+                i=$((i+1))
+                if [ "$i" -ge 60 ]; then
+                  echo "PostgreSQL not ready after 60 attempts; giving up." >&2
+                  exit 1
+                fi
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      containers:
+        - name: api
+          # Pinned by the overlays: local uses the Milestone 9 image
+          # (`formless-api:latest` loaded into kind); aws points at the ECR
+          # repositories Terraform created (`<project>/api`). Override with:
+          #   kustomize edit set image formless-api=<registry>/<repo>:<tag>
+          image: formless-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: '3000'
+            - name: DATABASE_URL
+              value: postgresql://formless:formless@postgres:5432/formless
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: formless-api-secrets
+                  key: OPENAI_API_KEY
+            # MODEL_MODE is left at its default `openai` in the base. The local
+            # overlay sets `fake` (deterministic demo models, no key, no
+            # network); the AWS overlay keeps `openai` with a real key.
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

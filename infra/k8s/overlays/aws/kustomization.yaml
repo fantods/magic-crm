@@ -1,0 +1,63 @@
+# AWS overlay: adapts the base manifests to the Terraform stack from
+# Milestone 10 (infra/terraform). Nothing here is applied by the local proof;
+# it is the documented shape of a real EKS deployment.
+#
+# Before applying (after `terraform apply` produced real values):
+#
+#   cd infra/k8s/overlays/aws
+#
+#   # Point the images at the ECR repositories Terraform created
+#   # (terraform output ecr_repository_urls; names are <project>/api and
+#   # <project>/web, tags immutable, so every push needs a fresh tag):
+#   kustomize edit set image \
+#     formless-api=<account>.dkr.ecr.<region>.amazonaws.com/formless/api:<tag> \
+#     formless-web=<account>.dkr.ecr.<region>.amazonaws.com/formless/web:<tag>
+#
+#   # Provide the RDS connection string Terraform wrote to SSM
+#   # (terraform output database_url_ssm_parameter_name):
+#   aws ssm get-parameter --name <parameter-name> --with-decryption \
+#     --query Parameter.Value --output text | \
+#     kubectl -n formless create secret generic formless-rds-url \
+#     --from-literal=DATABASE_URL=$(cat)
+#
+#   # Provide a real OpenAI key (the base template's empty key leaves
+#   # ingestion/query answering 503):
+#   kubectl -n formless create secret generic formless-api-secrets \
+#     --from-literal=OPENAI_API_KEY=sk-... --dry-run=client -o yaml | \
+#     kubectl apply -f -
+#
+# Then apply with the EKS kubeconfig:
+#   kubectl apply -k infra/k8s/overlays/aws
+#
+# Differences from base/local:
+# - no in-cluster PostgreSQL: the API reads DATABASE_URL from the
+#   `formless-rds-url` secret (Postgres Deployment/Service/PVC live in the
+#   local overlay, not in base)
+# - no wait-for-postgres init container: the RDS endpoint is not the
+#   in-cluster `postgres` Service; readiness stays gated on /api/v1/health,
+#   and the container entrypoint still applies migrations before serving
+# - images come from ECR instead of the local Docker daemon
+# - the Ingress targets the AWS Load Balancer Controller (ingressClassName
+#   alb) instead of ingress-nginx
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formless
+resources:
+  - ../../base
+images:
+  # Placeholder until `kustomize edit set image` fills in the real ECR paths;
+  # kept here so `kustomize build` renders without edits.
+  - name: formless-api
+    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/formless/api
+    newTag: v0.1.0
+  - name: formless-web
+    newName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/formless/web
+    newTag: v0.1.0
+patches:
+  # DATABASE_URL moves from the in-cluster Postgres to the RDS secret.
+  - path: patch-api-database-url.yaml
+  # The init container waits on the in-cluster `postgres` Service, which does
+  # not exist in this overlay.
+  - path: patch-api-remove-db-init.yaml
+  # ALB instead of ingress-nginx.
+  - path: patch-ingress-alb.yaml

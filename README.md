@@ -149,6 +149,18 @@ validated only — nothing is provisioned. Layout, cost notes, plan/apply
 order, and remote-state setup are documented in
 `infra/terraform/README.md`.
 
+### Kubernetes manifests
+
+`infra/k8s/` holds Kustomize manifests (base + `local`/`aws` overlays) that
+run the images on Kubernetes: Deployments, Services, Ingress, resource
+budgets, probes on the existing health endpoints, and a keyless
+`OPENAI_API_KEY` Secret template. The `local` overlay adds in-cluster
+PostgreSQL and `MODEL_MODE=fake`, and the whole stack is proven on a local
+`kind` cluster — exact commands in `infra/k8s/README.md` or one-shot via
+`infra/k8s/scripts/local-verify.sh`. The `aws` overlay adapts the same
+manifests to the Terraform stack (ECR images, RDS `DATABASE_URL`, ALB
+ingress) as documentation-grade output, not a real deployment.
+
 ## Tests
 
 Quality commands (no network or database needed for the unit tier):

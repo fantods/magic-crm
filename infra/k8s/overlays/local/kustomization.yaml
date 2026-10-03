@@ -1,0 +1,32 @@
+# Local (kind) overlay: proves the manifests end to end with the Milestone 9
+# images and the deterministic keyless model mode.
+#
+#   kubectl apply -k infra/k8s/overlays/local
+#
+# See infra/k8s/README.md for the full local run.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formless
+resources:
+  - ../../base
+  # PostgreSQL runs in-cluster for the local proof. The AWS overlay has no
+  # database resources at all: there the API reads DATABASE_URL from a secret
+  # holding the RDS connection string Terraform provisions.
+  - postgres-pvc.yaml
+  - postgres-deployment.yaml
+  - postgres-service.yaml
+images:
+  # Milestone 9 images, built from the repo root and loaded into kind:
+  #   docker build -f apps/api/Dockerfile -t formless-api:latest .
+  #   docker build -f apps/web/Dockerfile -t formless-web:latest .
+  #   kind load docker-image formless-api:latest formless-web:latest --name formless
+  - name: formless-api
+    newName: formless-api
+    newTag: latest
+  - name: formless-web
+    newName: formless-web
+    newTag: latest
+patches:
+  # Deterministic demo models: the full ingestion and query pipelines run
+  # with no OpenAI key and no network, so the local proof needs no secret.
+  - path: patch-api-model-mode.yaml

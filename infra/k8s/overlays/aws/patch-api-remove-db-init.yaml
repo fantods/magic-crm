@@ -1,0 +1,12 @@
+# Remove the wait-for-postgres init container: it polls the in-cluster
+# `postgres` Service, which does not exist in the AWS overlay (the database
+# is RDS). The API container entrypoint still applies migrations before
+# serving, and its readiness probe gates traffic.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      initContainers: null

@@ -1,0 +1,29 @@
+# Single ingress for the demo: everything under `/` goes to the web Service,
+# which serves the SPA and proxies `/api/` to the API Service. One host, one
+# path — no CORS involvement because the browser stays on one origin.
+#
+# The local overlay keeps `ingressClassName: nginx` (ingress-nginx inside
+# kind). The AWS overlay switches to the AWS Load Balancer Controller
+# (`alb`); see overlays/aws/patch-ingress-alb.yaml.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: formless
+  labels:
+    app.kubernetes.io/part-of: formless
+  annotations:
+    # The ingestion endpoint accepts email bodies up to 200 KB.
+    nginx.ingress.kubernetes.io/proxy-body-size: 2m
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: formless.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80

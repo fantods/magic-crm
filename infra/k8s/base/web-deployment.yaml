@@ -1,0 +1,67 @@
+# Static demo UI: nginx-unprivileged serving the Vite build on port 8080 and
+# reverse-proxying /api/ to the in-cluster `api` Service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app.kubernetes.io/name: formless-web
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: formless
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: formless-web
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: formless-web
+        app.kubernetes.io/component: web
+        app.kubernetes.io/part-of: formless
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # Pinned by the overlays: local uses the Milestone 9 image
+          # (`formless-web:latest` loaded into kind); aws points at the ECR
+          # repositories Terraform created (`<project>/web`). Override with:
+          #   kustomize edit set image formless-web=<registry>/<repo>:<tag>
+          image: formless-web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

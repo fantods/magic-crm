@@ -656,8 +656,18 @@ bucket), and teardown.**
 
 ### Milestone 11 — Kubernetes
 
-**Status: planned.** Manifests to run the images on Kubernetes: deployments,
-services, ingress, config/secrets, probes, and resource budgets.
+**Status: implemented and proven on a local kind cluster.** Kustomize
+manifests in `infra/k8s/` (base + `local`/`aws` overlays) run the API, the
+web UI, and — locally — PostgreSQL with a PVC: Services, an Ingress,
+resource requests/limits, probes wired to the existing health endpoints, and
+a keyless `OPENAI_API_KEY` Secret template. Images are parameterized per
+overlay: the local overlay pins the Milestone 9 images, the AWS overlay
+documents the ECR repositories from Milestone 10 (with `DATABASE_URL` from
+RDS via a secret and an ALB ingress). The local proof (see
+`infra/k8s/README.md`, or run `infra/k8s/scripts/local-verify.sh`): a kind
+cluster with ingress-nginx serves the demo UI, `/api/v1/health` answers, and
+the keyless deterministic mode ingests three demo emails and answers the
+budget query through the Ingress; the cluster is torn down afterwards.
 
 ### Milestone 12 — CI/CD and observability
 

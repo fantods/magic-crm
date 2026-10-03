@@ -1,0 +1,20 @@
+# Point DATABASE_URL at the RDS connection string Terraform stored in SSM.
+# Create the secret out-of-band (see the kustomization.yaml header):
+#   kubectl -n formless create secret generic formless-rds-url \
+#     --from-literal=DATABASE_URL='postgresql://...'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: DATABASE_URL
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: formless-rds-url
+                  key: DATABASE_URL

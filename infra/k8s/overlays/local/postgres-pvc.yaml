@@ -1,0 +1,17 @@
+# Dynamic provisioning picks the cluster's default StorageClass (kind ships
+# the local-path provisioner as `standard`). Patch `spec.storageClassName` in
+# an overlay if the target cluster needs a specific class.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: formless
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

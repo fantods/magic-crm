@@ -1,0 +1,28 @@
+# AWS Load Balancer Controller variant of the Ingress. Requires the controller
+# to be installed on the EKS cluster (an add-on on the Milestone 10 cluster;
+# its IRSA/OIDC groundwork is already in the terraform eks module).
+#
+# Replace `host` with the real DNS name and add a TLS section + cert-manager
+# annotation when a certificate exists.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: formless
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: null
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: formless
+spec:
+  ingressClassName: alb
+  rules:
+    - host: formless.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
