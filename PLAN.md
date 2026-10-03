@@ -671,9 +671,40 @@ budget query through the Ingress; the cluster is torn down afterwards.
 
 ### Milestone 12 — CI/CD and observability
 
-**Status: planned.** A pipeline for build/test/deploy of the containers, plus
-operational observability (metrics, dashboards, alerts) built on the
-structured logs and telemetry hooks from Milestone 8.
+**Status: implemented.** `.github/workflows/ci.yml` runs on every push to
+`main` and every pull request with only the default `GITHUB_TOKEN`: a verify
+job (lint, typecheck, unit/contract tests, full workspace build), an images
+job that builds the Milestone 9 Dockerfiles and pushes them to GitHub
+Container Registry tagged with the full commit SHA (fork PRs build and
+smoke-test but skip the push — their token is read-only), and a kind smoke
+job that loads the exact built images into a kind cluster, applies the
+Milestone 11 local overlay, waits for deployments, and asserts the API
+health endpoint plus the keyless ingestion/query path through the ingress
+(the proven `local-verify.sh`, `--skip-build`), tearing the cluster down at
+job end. Observability: the API exposes Prometheus metrics on
+`/api/v1/metrics` (`fastify-metrics`: per-route HTTP request histogram and
+summary labeled with route templates, methods, and status codes, plus
+Node.js process metrics; no query strings, bodies, or email content in any
+metric); `infra/k8s/base/monitoring/` holds a ServiceMonitor scraping the
+API Service and the Grafana dashboard as a `grafana_dashboard`-labeled
+ConfigMap, applied only through the opt-in `infra/k8s/overlays/monitoring`
+overlay so the demo default stays lean. The dashboard covers request rate,
+latency percentiles (p50/p90/p99), and 5xx error rate (total, per route, by
+status code). README deployment section documents the pipeline, registry,
+and observability setup. Nothing outside the pipeline and manifests is
+provisioned: real AWS apply and production hosting stay out of scope.**
+
+- GitHub Actions workflow: verify → images → kind smoke on push to `main`
+  and pull requests, GITHUB_TOKEN only.
+- GHCR image publishing (`ghcr.io/<owner>/<repo>/formless-api|web`) tagged
+  by commit SHA.
+- Kind-based smoke proof of the Milestone 11 local overlay on every change,
+  with teardown.
+- Prometheus metrics endpoint on the API (HTTP request + process metrics,
+  content-free labels).
+- ServiceMonitor + Grafana dashboard ConfigMap in the Kustomize base behind
+  the opt-in `monitoring` overlay.
+- README and `infra/k8s/README.md` documentation.
 
 ## Initial acceptance criteria
 

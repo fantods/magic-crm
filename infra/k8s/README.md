@@ -18,10 +18,15 @@ infra/k8s/
 │   ├── web-deployment.yaml     # nginx-unprivileged, probes on /healthz
 │   ├── web-service.yaml
 │   ├── ingress.yaml            # host formless.local -> web Service (which proxies /api/)
-│   └── api-secrets.yaml        # OPENAI_API_KEY template, committed keyless (empty)
+│   ├── api-secrets.yaml        # OPENAI_API_KEY template, committed keyless (empty)
+│   └── monitoring/             # opt-in: ServiceMonitor + Grafana dashboard
+│       ├── service-monitor.yaml        # scrapes the api Service's /api/v1/metrics
+│       ├── grafana-dashboard.json      # request rate, latency, error rate
+│       └── kustomization.yaml          # dashboard ConfigMap, grafana_dashboard label
 ├── overlays/
 │   ├── local/              # kind proof: in-cluster Postgres + MODEL_MODE=fake
-│   └── aws/                # ECR images, RDS via secret, ALB ingress (documentation-grade)
+│   ├── aws/                # ECR images, RDS via secret, ALB ingress (documentation-grade)
+│   └── monitoring/         # base + monitoring: kube-prometheus-stack clusters
 └── scripts/
     └── local-verify.sh     # one command: cluster -> proof -> teardown
 ```
@@ -107,6 +112,45 @@ Tear down when done:
 
 ```sh
 kind delete cluster --name formless
+```
+
+The same flow is what CI runs on every change (`.github/workflows/ci.yml`):
+the images built in the pipeline are loaded into kind and verified with this
+script (`--skip-build`), so the manifests stay proven end to end.
+
+## Metrics and dashboards (monitoring overlay)
+
+The API serves Prometheus metrics on `/api/v1/metrics`: per-route HTTP
+request metrics (histogram + summary, labeled `method`, `route` template,
+`status_code`) plus Node.js process metrics. Metrics never carry email
+content — only route templates, methods, and status codes.
+
+The monitoring resources are **not** part of the `local`/`aws` overlays (the
+ServiceMonitor CRD only exists once the Prometheus operator is installed).
+On a cluster running kube-prometheus-stack, apply them on top:
+
+```sh
+kubectl apply -k infra/k8s/overlays/monitoring
+```
+
+That applies:
+
+- `ServiceMonitor/formless-api` — scrapes the api Service (port `http`, path
+  `/api/v1/metrics`) every 15s, using `app.kubernetes.io/name` as the job
+  label. If your Prometheus selects ServiceMonitors by Helm release label,
+  add it first: `kustomize edit add label release:<prometheus-stack-release>`
+  inside `infra/k8s/overlays/monitoring/`, then apply.
+- `ConfigMap/formless-api-dashboard` — the Grafana dashboard JSON, labeled
+  `grafana_dashboard: "1"` so the kube-prometheus-stack Grafana sidecar
+  loads it automatically. Panels: request rate, latency percentiles
+  (p50/p90/p99), 5xx error rate (total, per route, by status code).
+
+Sanity check on a live cluster (the scrape path is the same one Prometheus
+uses, without the ingress in between):
+
+```sh
+kubectl -n formless port-forward svc/api 3000:3000 &
+curl -s http://127.0.0.1:3000/api/v1/metrics | head
 ```
 
 ## How the AWS overlay differs

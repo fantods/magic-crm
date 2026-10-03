@@ -1,9 +1,10 @@
 #!/usr/bin/env sh
 # Proves the Milestone 11 Kubernetes manifests on a local kind cluster:
 # builds/loads the Milestone 9 images, installs ingress-nginx, applies the
-# local overlay, and verifies pods Ready, web serving, API health, and the
-# keyless deterministic ingestion + query path. Tears the cluster down at
-# the end unless KEEP_CLUSTER=1.
+# local overlay, and verifies pods Ready, web serving, API health, the
+# keyless deterministic ingestion + query path, and the Milestone 12
+# Prometheus metrics endpoint. Tears the cluster down at the end unless
+# KEEP_CLUSTER=1.
 #
 # Prerequisites: docker, kind, kubectl; free host port 80.
 # Usage: infra/k8s/scripts/local-verify.sh [--skip-build]
@@ -50,6 +51,8 @@ fail() {
 say "Verifying"
 curl -fsS -H "Host: $INGRESS_HOST" http://localhost/api/v1/health | grep -q '"status":"ok"' \
   || fail "API health did not answer ok through the ingress"
+curl -fsS -H "Host: $INGRESS_HOST" http://localhost/api/v1/metrics | grep -q 'http_request_duration_seconds' \
+  || fail "API metrics endpoint did not serve Prometheus metrics through the ingress"
 curl -fsS -o /dev/null -H "Host: $INGRESS_HOST" http://localhost/ \
   || fail "web UI did not serve through the ingress"
 INGESTION=$(curl -fsS -X POST -H 'Content-Type: application/json' -H "Host: $INGRESS_HOST" \

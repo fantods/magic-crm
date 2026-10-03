@@ -1,0 +1,19 @@
+# Opt-in observability overlay: the base stack plus the Prometheus
+# ServiceMonitor and the Grafana dashboard ConfigMap. Apply it on a cluster
+# running the Prometheus operator / kube-prometheus-stack:
+#
+#   kubectl apply -k infra/k8s/overlays/monitoring
+#
+# Prometheus discovers the ServiceMonitor across namespaces; if your stack
+# selects ServiceMonitors by Helm release label, add it here first:
+#
+#   kustomize edit add label release:<prometheus-stack-release>
+#
+# The dashboard ConfigMap carries the `grafana_dashboard: "1"` label, which
+# the Grafana sidecar picks up and loads as a dashboard named "Formless API".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formless
+resources:
+  - ../../base
+  - ../../base/monitoring

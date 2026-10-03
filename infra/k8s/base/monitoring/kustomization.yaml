@@ -1,0 +1,21 @@
+# Monitoring resources for the API: a ServiceMonitor for the Prometheus
+# operator and the Grafana dashboard as a ConfigMap. These stay out of the
+# base kustomization (the ServiceMonitor CRD only exists once the Prometheus
+# operator is installed), so the lean local/AWS overlays never require them.
+# The `overlays/monitoring` overlay composes them with the base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: formless
+resources:
+  - service-monitor.yaml
+generatorOptions:
+  # Stable ConfigMap name and the label the kube-prometheus-stack Grafana
+  # sidecar (`sidecar.dashboards.label`) scans for; the JSON is loaded as a
+  # dashboard automatically.
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: '1'
+configMapGenerator:
+  - name: formless-api-dashboard
+    files:
+      - grafana-dashboard.json

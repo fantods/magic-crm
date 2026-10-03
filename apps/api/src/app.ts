@@ -45,6 +45,7 @@ import {
   QueryWorkspaceNotFoundError,
 } from './query-service.js';
 import { captureError, OperationalLogger, silentLogger } from './observability/index.js';
+import { registerMetrics } from './observability/metrics.js';
 
 const packageVersion = '0.1.0';
 
@@ -269,6 +270,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       timeWindow: rateLimitOptions.timeWindowMs,
     });
   }
+
+  // Prometheus metrics (HTTP request metrics + Node.js process metrics) on
+  // `/api/v1/metrics`. Registered before the routes so the plugin's onRoute
+  // hook whitelists every endpoint. Route labels are templates, so no email
+  // content can reach a metric.
+  await registerMetrics(app);
 
   // Server-side error telemetry hook: no-op by default, operator-wireable.
   // Only server failures are reported; client mistakes are not errors.

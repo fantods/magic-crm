@@ -1,0 +1,36 @@
+# Prometheus scrape configuration for the API's metrics endpoint
+# (`/api/v1/metrics`). Lives in the Kustomize base but is only applied through
+# the `overlays/monitoring` overlay, so the lean local/AWS overlays stay free
+# of prometheus-operator dependencies (the ServiceMonitor CRD must exist).
+#
+# Requires a cluster with the Prometheus operator / kube-prometheus-stack
+# installed. If your Prometheus resource selects ServiceMonitors by Helm
+# release label, add that label when applying:
+#
+#   kustomize edit add label release:<prometheus-stack-release>
+#   kubectl apply -k infra/k8s/overlays/monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: formless-api
+  labels:
+    app.kubernetes.io/name: formless-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: formless
+spec:
+  # Use the Service's `app.kubernetes.io/name` label as the Prometheus job
+  # label, so dashboard queries can select the job explicitly.
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - formless
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: formless-api
+  endpoints:
+    # Same port the web image's nginx proxies /api/ to (api:3000); the
+    # metrics endpoint serves route-template counters, so scraping is cheap.
+    - port: http
+      path: /api/v1/metrics
+      interval: 15s
+      scrapeTimeout: 10s

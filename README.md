@@ -6,7 +6,7 @@ This repository is a production-oriented technical demo. It does **not** use Evo
 
 ## Current status
 
-All eight plan milestones are implemented. The highlights:
+All twelve plan milestones are implemented. The highlights:
 
 - pnpm monorepo with strict TypeScript throughout
 - Fastify API with the versioned `/api/v1` surface (health, ingestion, schema
@@ -33,6 +33,11 @@ All eight plan milestones are implemented. The highlights:
   - a Playwright end-to-end walkthrough of the three demo cases with the fake
     model, so it needs no OpenAI key
 - ESLint, Prettier, and Vitest setup
+- platform chain (Milestones 9–12): production container images, Terraform
+  AWS stack as code (validated, unapplied), Kubernetes manifests proven on
+  kind, and a GitHub Actions pipeline (verify → GHCR images tagged by SHA →
+  kind smoke test) with Prometheus metrics and a Grafana dashboard on the
+  API
 
 The full architecture and delivery plan is in [`PLAN.md`](./PLAN.md); a
 step-by-step fresh-clone walkthrough is in
@@ -161,6 +166,59 @@ PostgreSQL and `MODEL_MODE=fake`, and the whole stack is proven on a local
 manifests to the Terraform stack (ECR images, RDS `DATABASE_URL`, ALB
 ingress) as documentation-grade output, not a real deployment.
 
+### CI/CD
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull
+request, with only the default `GITHUB_TOKEN` (no custom secrets):
+
+1. **verify** — lint, typecheck, unit/contract tests, and a full workspace
+   build (the same commands as `pnpm lint` / `typecheck` / `test` / `build`).
+2. **images** — builds both Milestone 9 Dockerfiles and pushes them to
+   GitHub Container Registry as
+   `ghcr.io/<owner>/<repo>/formless-api` and `.../formless-web`, each tagged
+   with the full commit SHA. Fork pull requests build and smoke-test but
+   skip the push (their token is read-only).
+3. **kind-smoke** — proves the deployment end to end on every change: loads
+   the exact images built in step 2 into a kind cluster, applies the
+   Milestone 11 local overlay, waits for deployments to become available,
+   and asserts the API health endpoint plus the keyless ingestion and query
+   path through the ingress (`infra/k8s/scripts/local-verify.sh
+--skip-build`), then tears the cluster down.
+
+Images pushed from `main` are the deployable artifacts; the SHA tag is the
+immutable reference per change (point any environment at it with
+`kustomize edit set image formless-api=ghcr.io/<owner>/<repo>/formless-api:<sha>`).
+
+### Observability
+
+The API exposes Prometheus metrics on [`/api/v1/metrics`](http://127.0.0.1:3000/api/v1/metrics)
+via the `fastify-metrics` plugin:
+
+- HTTP request metrics — `http_request_duration_seconds` (histogram) and
+  `http_request_summary_seconds`, labeled `method`, `route` (route template,
+  e.g. `/api/v1/workspaces/:workspaceId/ingestions`), and `status_code`.
+- Node.js process metrics — CPU, memory, event loop lag, GC, file
+  descriptors.
+- Privacy: metrics carry only route templates, methods, and status codes —
+  query strings, request bodies, and email content never enter a metric
+  (same posture as the logs).
+
+The Kubernetes side is opt-in so the demo overlays stay lean:
+`infra/k8s/base/monitoring/` holds a `ServiceMonitor` scraping the API
+Service every 15s and the Grafana dashboard as a ConfigMap labeled
+`grafana_dashboard: "1"` (auto-loaded by the kube-prometheus-stack Grafana
+sidecar). Apply both with the overlay:
+
+```bash
+kubectl apply -k infra/k8s/overlays/monitoring
+```
+
+The dashboard (`Formless API`) covers request rate, latency percentiles
+(p50/p90/p99), and error rate (5xx share, per route and by status code).
+It requires a cluster with the Prometheus operator / kube-prometheus-stack
+installed; see `infra/k8s/base/monitoring/` and `infra/k8s/README.md` for
+the label tweaks some stacks need.
+
 ## Tests
 
 Quality commands (no network or database needed for the unit tier):
@@ -211,6 +269,8 @@ pnpm db:migrate:status
   from importing the OpenAI package.
 - Email bodies are sent to OpenAI by the server but never written to
   application logs; log fields are constrained to operational metadata.
+- Prometheus metrics are content-free: only route templates, HTTP methods,
+  and status codes become labels — never URLs, bodies, or email content.
 - Rate limiting and security headers are on by default; overrides are
   documented in `.env.example`.
 
@@ -228,4 +288,8 @@ packages/
   openai/    OpenAI Responses API adapter, structured-output schemas, and prompts
   testing/   Network-free fixtures and fake model implementations
 docs/        Local setup guide and acceptance-criteria verification
+infra/
+  terraform/ Terraform stack for AWS (VPC, ECR, RDS, EKS)
+  k8s/       Kustomize manifests (base + local/aws/monitoring overlays),
+             kind config, and the local-verify script
 ```

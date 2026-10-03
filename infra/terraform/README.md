@@ -127,22 +127,22 @@ live in state; the bucket must be versioned and encrypted, and access-limited.
 
 ## Cost notes (rough monthly, us-east-1, demo defaults)
 
-| Piece | Resource | ~$/month |
-|---|---|---|
-| VPC, subnets, route tables, IGW | `aws_vpc` + friends | $0 |
-| NAT gateway (egress for private subnets) | `aws_nat_gateway` | ~$33 ($0.045/hr) + ~$0.045/GB processed |
-| EKS control plane | `aws_eks_cluster` | ~$73 ($0.10/hr, fixed) |
-| Worker node | 1× t3.medium ON_DEMAND | ~$30 |
-| Worker node, SPOT option | same, `node_capacity_type = "SPOT"` | ~$10–12 |
-| Node boot disk | 20 GiB gp3 EBS | ~$1.60 |
-| PostgreSQL 16 | db.t4g.micro single-AZ | ~$11 |
-| DB storage | 20 GiB gp3 (autoscales to 100) | ~$2.30 |
-| DB backups | 7-day automated | ~$0 within free tier of allocated storage |
-| ECR | both repos, a few GB of images | ~$0.10/GB → $1–2 |
-| KMS key (EKS secrets) | `aws_kms_key` | ~$1 |
-| SSM parameters | standard tier | $0 |
-| **Total (ON_DEMAND node)** | | **~$150/month** |
-| **Total (SPOT node)** | | **~$125/month** |
+| Piece                                    | Resource                            | ~$/month                                  |
+| ---------------------------------------- | ----------------------------------- | ----------------------------------------- |
+| VPC, subnets, route tables, IGW          | `aws_vpc` + friends                 | $0                                        |
+| NAT gateway (egress for private subnets) | `aws_nat_gateway`                   | ~$33 ($0.045/hr) + ~$0.045/GB processed   |
+| EKS control plane                        | `aws_eks_cluster`                   | ~$73 ($0.10/hr, fixed)                    |
+| Worker node                              | 1× t3.medium ON_DEMAND              | ~$30                                      |
+| Worker node, SPOT option                 | same, `node_capacity_type = "SPOT"` | ~$10–12                                   |
+| Node boot disk                           | 20 GiB gp3 EBS                      | ~$1.60                                    |
+| PostgreSQL 16                            | db.t4g.micro single-AZ              | ~$11                                      |
+| DB storage                               | 20 GiB gp3 (autoscales to 100)      | ~$2.30                                    |
+| DB backups                               | 7-day automated                     | ~$0 within free tier of allocated storage |
+| ECR                                      | both repos, a few GB of images      | ~$0.10/GB → $1–2                          |
+| KMS key (EKS secrets)                    | `aws_kms_key`                       | ~$1                                       |
+| SSM parameters                           | standard tier                       | $0                                        |
+| **Total (ON_DEMAND node)**               |                                     | **~$150/month**                           |
+| **Total (SPOT node)**                    |                                     | **~$125/month**                           |
 
 The levers, in order of impact: the EKS control plane is a flat ~$73 and is
 the single biggest line — worth a decision before enabling Milestone 11; the

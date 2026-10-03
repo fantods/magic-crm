@@ -318,3 +318,75 @@ describe('Query API contract (network-free)', () => {
     }
   });
 });
+
+describe('Prometheus metrics endpoint', () => {
+  it('serves process and HTTP request metrics in exposition format', async () => {
+    const app = await buildApp();
+
+    try {
+      const health = await app.inject({ method: 'GET', url: '/api/v1/health' });
+      expect(health.statusCode).toBe(200);
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/metrics' });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('text/plain');
+
+      const body = response.body;
+      // Node.js process metrics from the default collectors.
+      expect(body).toContain('process_cpu_user_seconds_total');
+      expect(body).toContain('nodejs_eventloop_lag_seconds');
+      // HTTP request metrics from the route collectors.
+      expect(body).toContain('http_request_duration_seconds_bucket');
+      // The observed request is attributed to its route template, not its
+      // raw URL.
+      expect(body).toContain('route="/api/v1/health"');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('never exposes email content in metrics', async () => {
+    const app = await buildApp({ env: {} });
+
+    try {
+      const marker = 'CONFIDENTIAL-lead-email-42b7';
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/workspaces/demo/ingestions',
+        payload: { subject: marker, body: `${marker} operates three clinics.` },
+      });
+      await app.inject({
+        method: 'GET',
+        url: '/api/v1/workspaces/demo/schema?marker=CONFIDENTIAL-lead-email-42b7',
+      });
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/metrics' });
+      expect(response.statusCode).toBe(200);
+      // The failed ingestion (503) and the schema request are counted, but
+      // neither bodies, subjects, nor query strings reach a label or value.
+      expect(response.body).not.toContain(marker);
+      expect(response.body).toContain('status_code="503"');
+      expect(response.body).toContain('route="/api/v1/workspaces/:workspaceId/schema"');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('isolates registries between app instances', async () => {
+    const first = await buildApp();
+    const second = await buildApp();
+
+    try {
+      // The second registration must not collide with the first (the plugin
+      // defaults to a module-global registry, which double-registers).
+      for (const app of [first, second]) {
+        const response = await app.inject({ method: 'GET', url: '/api/v1/metrics' });
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain('http_request_duration_seconds');
+      }
+    } finally {
+      await first.close();
+      await second.close();
+    }
+  });
+});

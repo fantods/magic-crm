@@ -21,7 +21,9 @@
     "@formless/database": "workspace:*",
     "@formless/openai": "workspace:*",
     "@formless/testing": "workspace:*",
+    "@prometheus-io/client": "0.16.1",
     "fastify": "^5.1.0",
+    "fastify-metrics": "^14.1.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {

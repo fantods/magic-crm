@@ -3,3 +3,4 @@ pnpm-lock.yaml
 .pnpm-cache/**
 **/dist/**
 **/coverage/**
+infra/terraform/.terraform/**
