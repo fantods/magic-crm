@@ -1,0 +1,23 @@
+# Keeps Docker build contexts small for every image built from the repo root.
+# Images only need sources, package manifests, and the lockfile; all local
+# tooling state stays out of `docker build`.
+
+.git
+.env
+.env.*
+!.env.example
+
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+
+# Local tooling, docs, and test artifacts that no image needs.
+.browsers
+test-results
+playwright-report
+docs
+e2e
+README.md
+PLAN.md

@@ -1,0 +1,24 @@
+# BuildKit reads this file instead of the root .dockerignore when building
+# with `-f apps/api/Dockerfile`. The API image needs its own sources plus the
+# workspace packages it depends on; everything else stays out of the context.
+
+.git
+.env
+.env.*
+!.env.example
+
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+
+# The web app, docs, and local test tooling are irrelevant to the API image.
+apps/web
+.browsers
+test-results
+playwright-report
+docs
+e2e
+README.md
+PLAN.md

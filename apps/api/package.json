@@ -20,11 +20,11 @@
     "@formless/core": "workspace:*",
     "@formless/database": "workspace:*",
     "@formless/openai": "workspace:*",
+    "@formless/testing": "workspace:*",
     "fastify": "^5.1.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
-    "@formless/testing": "workspace:*",
     "@types/node": "^24.0.0",
     "tsx": "^4.19.0",
     "vitest": "^3.0.0"

@@ -592,6 +592,54 @@ key. README, local setup guide, and acceptance-criteria verification are in
 - Playwright end-to-end demo.
 - README and local setup guide.
 
+## Platform milestones
+
+The product milestones are complete; this chain hardens the delivery platform
+around them.
+
+### Milestone 9 — Containerization
+
+**Status: implemented. Both apps build from pinned base images into
+production containers: the API image (`node:22.21.1-bookworm-slim`) builds
+the pnpm workspace inside the image, prunes to its production dependency
+closure, runs as a non-root user, and applies migrations on boot; the web
+image is a multi-stage Vite build served by unprivileged nginx
+(`nginxinc/nginx-unprivileged:1.29.1-alpine`) with an SPA fallback and an
+`/api/` reverse proxy. Root and per-image `.dockerignore` files keep the
+build contexts small. `docker-compose.prod.yml` runs the production-like
+full stack — PostgreSQL 16, API, web — with env wiring, a healthcheck on
+every service (postgres readiness, API `/api/v1/health`, web HTTP), and
+`restart: unless-stopped`. `MODEL_MODE=fake` on the API entry point serves
+the deterministic model double, so the stack runs with no OpenAI key.
+Verified locally: images build, `compose up --wait` reaches healthy, the web
+app loads, the API answers, and a demo email ingests end to end.**
+
+- Production `apps/api` and `apps/web` Dockerfiles (pinned tags, non-root,
+  multi-stage web, in-image workspace builds).
+- Root and per-image `.dockerignore` files.
+- `docker-compose.prod.yml`: postgres + api + web, healthchecks, restart
+  policy, named data volume, project isolated from the dev compose.
+- Keyless `MODEL_MODE=fake` mode on the API entry point, shared with the
+  e2e server.
+- README "Deployment" section covering image builds and the compose stack.
+
+### Milestone 10 — Infrastructure as code
+
+**Status: planned.** Terraform for the cloud substrate (network, database,
+container hosting, secrets) so environments are reproducible from code;
+consumes the images from Milestone 9.
+
+### Milestone 11 — Kubernetes
+
+**Status: planned.** Manifests to run the images on Kubernetes: deployments,
+services, ingress, config/secrets, probes, and resource budgets.
+
+### Milestone 12 — CI/CD and observability
+
+**Status: planned.** A pipeline for build/test/deploy of the containers, plus
+operational observability (metrics, dashboards, alerts) built on the
+structured logs and telemetry hooks from Milestone 8.
+
 ## Initial acceptance criteria
 
 1. Pasting three industry examples creates records with a single `locations_count` column containing 3, 6, and 18.

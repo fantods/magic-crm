@@ -92,6 +92,55 @@ With the API and web app running, open <http://127.0.0.1:5173> and:
    example button fills it in) and inspect the interpreted structured query and
    its result.
 
+## Deployment
+
+The repo ships production container images and a production-like full-stack
+Compose file, separate from the development `docker-compose.yml` (which only
+runs PostgreSQL for local dev).
+
+### Images
+
+Both images build from the repository root so the pnpm workspace, lockfile,
+and workspace packages are in context:
+
+```bash
+docker build -f apps/api/Dockerfile -t formless-api:latest .
+docker build -f apps/web/Dockerfile -t formless-web:latest .
+```
+
+- `apps/api/Dockerfile` — pinned `node:22.21.1-bookworm-slim`, builds the API
+  and every workspace package it depends on, prunes to the production
+  dependency closure (`pnpm deploy`), and runs as a non-root user. On boot it
+  applies migrations, then serves. pnpm comes from the repo's pinned
+  `packageManager` field via corepack.
+- `apps/web/Dockerfile` — multi-stage: pinned Node image builds the Vite
+  bundle, then `nginxinc/nginx-unprivileged:1.29.1-alpine` serves it with an
+  SPA fallback, immutable caching for hashed assets, and an `/api/` reverse
+  proxy so the browser talks to a single origin.
+
+Root and per-image `.dockerignore` files (`.dockerignore`,
+`apps/*/Dockerfile.dockerignore`) keep the build contexts small.
+
+### Production-like stack
+
+```bash
+docker compose -f docker-compose.prod.yml up --wait --build
+# Web demo:   http://localhost:8080 (nginx proxies /api/ to the API)
+# API direct: http://localhost:3000/api/v1/health
+docker compose -f docker-compose.prod.yml down --volumes
+```
+
+The stack runs PostgreSQL 16, the API, and the web app, with a healthcheck on
+each service (postgres readiness, API `/api/v1/health`, web HTTP),
+`restart: unless-stopped`, and a named volume for database data. The API applies
+migrations on every boot.
+
+`MODEL_MODE` defaults to `fake` here: the deterministic model double runs the
+full ingestion and query pipeline with no OpenAI key and no network, which is
+what the demo fixtures exercise. Set `MODEL_MODE=openai` (and `OPENAI_API_KEY`)
+to serve the real model instead. To point the web bundle at an API hosted
+elsewhere, rebuild with `--build-arg VITE_API_URL=https://api.example.com/api/v1`.
+
 ## Tests
 
 Quality commands (no network or database needed for the unit tier):

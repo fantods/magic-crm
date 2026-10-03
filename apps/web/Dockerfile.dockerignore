@@ -1,0 +1,29 @@
+# BuildKit reads this file instead of the root .dockerignore when building
+# with `-f apps/web/Dockerfile`. The web image needs only the web app and the
+# contracts package it imports; everything else stays out of the context.
+
+.git
+.env
+.env.*
+!.env.example
+
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+
+# The API, its workspace packages, docs, and local test tooling are
+# irrelevant to the web image.
+apps/api
+packages/core
+packages/database
+packages/openai
+packages/testing
+.browsers
+test-results
+playwright-report
+docs
+e2e
+README.md
+PLAN.md

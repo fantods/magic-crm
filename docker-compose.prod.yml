@@ -1,0 +1,88 @@
+# Production-like full-stack demo: PostgreSQL + API + static web.
+#
+# Separate from the development docker-compose.yml, which only runs Postgres
+# for local dev. This stack builds both app images, wires the environment,
+# runs migrations on boot, and healthchecks every service:
+#
+#   docker compose -f docker-compose.prod.yml up --wait --build
+#
+# Web demo:  http://localhost:8080
+# API health:http://localhost:3000/api/v1/health
+#
+# MODEL_MODE defaults to `fake`, the deterministic model double, so the stack
+# runs with no OpenAI key. Set MODEL_MODE=openai (and OPENAI_API_KEY) to use
+# the real model.
+
+name: magic-crm-prod
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    container_name: formless-prod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: formless
+      POSTGRES_PASSWORD: formless
+      POSTGRES_DB: formless
+    volumes:
+      - formless-prod-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U formless -d formless']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: formless-api:latest
+    container_name: formless-prod-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3000'
+      DATABASE_URL: postgresql://formless:formless@postgres:5432/formless
+      CORS_ORIGIN: http://localhost:8080
+      MODEL_MODE: ${MODEL_MODE:-fake}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1));",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: formless-web:latest
+    container_name: formless-prod-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  formless-prod-postgres-data:
