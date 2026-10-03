@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars (gitignored) and adjust before a real apply.
+# Nothing here is required for `terraform validate`; every variable has a demo-sized default.
+
+project_name = "formless"
+aws_region   = "us-east-1"
+
+# Networking
+vpc_cidr  = "10.0.0.0/16"
+az_count  = 2
+
+# Kubernetes (null = AWS's current default version for new clusters)
+kubernetes_version = null
+
+# Worker nodes
+node_instance_types                 = ["t3.medium"]
+node_capacity_type                  = "ON_DEMAND" # "SPOT" roughly triples cost efficiency
+node_min_size                       = 1
+node_max_size                       = 2
+node_desired_size                   = 1
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"] # restrict to your IP ranges for anything real
+
+# Database
+db_name                 = "formless"
+db_username             = "formless"
+db_instance_class       = "db.t4g.micro"
+db_allocated_storage    = 20
+db_max_allocated_storage = 100
+db_engine_version       = "16.9"
+
+tags = {}

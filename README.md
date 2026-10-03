@@ -141,6 +141,14 @@ what the demo fixtures exercise. Set `MODEL_MODE=openai` (and `OPENAI_API_KEY`)
 to serve the real model instead. To point the web bundle at an API hosted
 elsewhere, rebuild with `--build-arg VITE_API_URL=https://api.example.com/api/v1`.
 
+### AWS infrastructure as code
+
+`infra/terraform/` provisions the cloud substrate behind these images (VPC,
+ECR registries, RDS PostgreSQL 16, EKS) with Terraform. It is written and
+validated only — nothing is provisioned. Layout, cost notes, plan/apply
+order, and remote-state setup are documented in
+`infra/terraform/README.md`.
+
 ## Tests
 
 Quality commands (no network or database needed for the unit tier):

@@ -625,9 +625,34 @@ app loads, the API answers, and a demo email ingests end to end.**
 
 ### Milestone 10 — Infrastructure as code
 
-**Status: planned.** Terraform for the cloud substrate (network, database,
-container hosting, secrets) so environments are reproducible from code;
-consumes the images from Milestone 9.
+**Status: implemented and validated only; nothing has been provisioned.
+`infra/terraform/` holds a demo-sized AWS stack as code — VPC with public and
+private subnets across two AZs and a single NAT gateway, ECR repositories for
+the api and web images (scan-on-push, immutable tags, untagged-image expiry),
+RDS PostgreSQL 16 (`db.t4g.micro`, 20 GiB gp3 with autoscaling, encrypted,
+private-only, generated master password stored in SSM SecureString alongside
+a ready `DATABASE_URL`), and EKS on AWS's current default Kubernetes version
+with a one-node managed node group (t3.medium, max 2), cluster/node IAM
+roles and security groups, KMS-encrypted Kubernetes secrets, core addons,
+and the OIDC provider for later IRSA roles. Providers are pinned
+(`hashicorp/aws ~> 6.0`, `hashicorp/random ~> 3.7`, Terraform >= 1.6, lockfile
+committed); state defaults to local with the encrypted S3 backend documented
+in place. `terraform fmt -recursive`, `terraform init`, and
+`terraform validate` all pass with zero AWS credentials present; no `plan`
+or `apply` has been run, and no credentials or secrets exist in the repo.
+`infra/terraform/README.md` documents the layout, per-resource monthly cost
+estimates (~$150/mo ON_DEMAND, ~$125/mo SPOT — the EKS control plane and
+NAT gateway dominate), apply prerequisites (account, credentials, state
+bucket), and teardown.**
+
+- `infra/terraform/` root module plus `modules/vpc`, `modules/ecr`,
+  `modules/rds`, `modules/eks`, wired as one dependency graph.
+- No-credentials validation gate: `fmt -recursive`, `init`, `validate`.
+- README with layout, cost table, plan/apply order, and remote-state
+  bootstrap commands; root README Deployment section gains a pointer.
+- Actual `apply` remains a captain-gated follow-up requiring a real AWS
+  account and credentials; Kubernetes manifests (11) and CI/CD +
+  observability (12) stay out of scope here.
 
 ### Milestone 11 — Kubernetes
 

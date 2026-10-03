@@ -1,0 +1,24 @@
+# Terraform working files
+.terraform/
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+
+# State and plans must never leave the machine unencrypted
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+
+# Local overrides and secrets
+*.auto.tfvars
+terraform.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Keep .terraform.lock.hcl committed (pinned provider hashes).
+
+# Module-level init artifacts (root lockfile is the committed one)
+modules/*/.terraform.lock.hcl
